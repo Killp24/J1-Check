@@ -26,15 +26,21 @@ def log(msg):
 
 
 def get(url, tries=3):
+    """Fetch a page. Never raises: a failure is logged and returns an empty string,
+    so one bad source cannot take the whole run down."""
     for i in range(tries):
         try:
             req = urllib.request.Request(url, headers=UA)
-            return urllib.request.urlopen(req, timeout=60).read().decode("utf-8", "replace")
+            with urllib.request.urlopen(req, timeout=60) as r:
+                body = r.read().decode("utf-8", "replace")
+            log(f"  ok   {r.status}  {len(body):>8,} bytes  {url}")
+            return body
         except Exception as e:
+            code = getattr(e, "code", "")
+            log(f"  fail {code} attempt {i+1}/{tries}  {url}: {e}")
             if i == tries - 1:
-                log(f"FAILED {url}: {e}")
                 return ""
-            time.sleep(5)
+            time.sleep(8)
 
 
 # ---------- 1. football-data.co.uk: results + closing odds ----------
@@ -58,6 +64,9 @@ if raw:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
         w.writerows(odds_rows)
+else:
+    log("football-data returned nothing; writing an empty j1_odds.csv")
+    open("j1_odds.csv", "w", encoding="utf-8").write("")
 
 
 # ---------- 2. FBref: results + xG ----------
@@ -103,12 +112,35 @@ for season, url in seasons:
     log(f"FBref {season}: {len(rows)} matches, with xG on {sum(1 for r in rows if r['home_xg'])}")
     time.sleep(4)          # FBref asks for slow, polite requests
 
+if not xg_rows:
+    log("FBref returned nothing; writing an empty j1_xg.csv")
+    open("j1_xg.csv", "w", encoding="utf-8").write("")
 if xg_rows:
     with open("j1_xg.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(xg_rows[0].keys()))
         w.writeheader()
         w.writerows(xg_rows)
     log(f"FBref total: {len(xg_rows)} matches")
+
+
+# ---------- 2b. fallback results if FBref blocked the runner ----------
+# FBref sometimes refuses cloud IPs. This mirror lives on GitHub and always answers.
+# It carries results only, no xG, but it keeps the pipeline useful either way.
+if not xg_rows:
+    log("trying the GitHub results mirror instead")
+    for season in ("2024", "2025", "2026"):
+        txt = get(f"https://raw.githubusercontent.com/footballcsv/cache.footballdata/master/JPN/{season}/jpn.1.csv")
+        if not txt:
+            continue
+        for r in csv.DictReader(io.StringIO(txt)):
+            h = r.get("Team 1") or r.get("HomeTeam") or ""
+            a = r.get("Team 2") or r.get("AwayTeam") or ""
+            sc = r.get("FT") or ""
+            m = re.match(r"(\d+)\D+(\d+)", sc)
+            if h and a and m:
+                xg_rows.append(dict(season=season, date=r.get("Date", ""), home=h, away=a,
+                                    hg=m.group(1), ag=m.group(2), home_xg="", away_xg=""))
+        log(f"  mirror {season}: running total {len(xg_rows)}")
 
 
 # ---------- 3. join them ----------
@@ -142,6 +174,9 @@ for r in odds_rows:
     merged.append({**r, "home_xg": (x or {}).get("home_xg", ""), "away_xg": (x or {}).get("away_xg", "")})
 log(f"merged: {len(merged)} matches, {hit} with xG attached")
 
+if not merged:
+    log("nothing to merge; writing an empty j1_merged.csv")
+    open("j1_merged.csv", "w", encoding="utf-8").write("")
 if merged:
     with open("j1_merged.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(merged[0].keys()))
