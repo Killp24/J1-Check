@@ -19,9 +19,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Collect results, odds and xG
         run: python3 fetch_j1.py
+      - name: Show the log
+        if: always()
+        run: cat fetch_log.txt || echo "no log written"
       - name: Save if changed
+        if: always()
         run: |
-          git add j1_odds.csv j1_xg.csv j1_merged.csv fetch_log.txt
+          git add -A
           if git diff --cached --quiet; then
             echo "No changes."
           else
