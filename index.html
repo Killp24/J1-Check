@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>J1 Check</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#123a5f">
+<style>
+:root{
+ --bg:#eef1f5; --card:#fff; --ink:#15202b; --muted:#5b6b7c; --line:#d6dde6;
+ --navy:#123a5f; --navy2:#1b4f80; --green:#0f7a46; --greenbg:#e5f4ec;
+ --amber:#8a5a00; --amberbg:#fdf2dc; --red:#b3261e; --redbg:#fdeceb;
+ box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+ color-scheme:light;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);
+ font:16px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:720px;margin:0 auto;padding:12px 12px 90px}
+h1{font-size:1.35rem;margin:.2rem 0 .1rem}
+h2{font-size:1.05rem;margin:0 0 .5rem}
+h3{font-size:.95rem;margin:1rem 0 .4rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.sub{color:var(--muted);font-size:.86rem;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px}
+.btn{font:inherit;padding:9px 13px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+ color:var(--ink);cursor:pointer}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:600}
+.btn.sm{padding:5px 9px;font-size:.85rem}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.spread{display:flex;justify-content:space-between;align-items:center;gap:8px}
+input,select,textarea{font:inherit;font-size:16px;padding:9px;border:1px solid var(--line);
+ border-radius:8px;background:#fff;color:var(--ink);width:100%}
+textarea{min-height:90px;resize:vertical}
+.muted{color:var(--muted)}
+.small{font-size:.84rem}
+.tag{display:inline-block;padding:3px 8px;border-radius:999px;font-size:.78rem;font-weight:600}
+.tag.go{background:var(--greenbg);color:var(--green)}
+.tag.thin{background:var(--amberbg);color:var(--amber)}
+.tag.no{background:var(--redbg);color:var(--red)}
+.tag.flat{background:#eef1f5;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.fix{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);
+ border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer;font:inherit;color:inherit}
+.fix:hover{border-color:var(--navy2)}
+.fix .teams{font-weight:600}
+.fix .when{color:var(--muted);font-size:.84rem}
+.fix.best{border-left:4px solid var(--green)}
+.tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.tabs button{flex:1 1 auto;padding:9px;border:1px solid var(--line);background:var(--card);
+ border-radius:8px;font:inherit;cursor:pointer;color:var(--muted)}
+.tabs button[aria-selected=true]{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:600}
+.navbar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);
+ display:flex;padding-bottom:env(safe-area-inset-bottom,0px);z-index:10}
+.navbar button{flex:1;padding:12px 4px;border:0;background:none;font:inherit;font-size:.86rem;
+ color:var(--muted);cursor:pointer}
+.navbar button[aria-current=page]{color:var(--navy);font-weight:700;box-shadow:inset 0 2px 0 var(--navy)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);
+ background:var(--bg);z-index:11}
+.grid{display:grid;grid-template-columns:auto repeat(3,1fr);gap:6px;align-items:center}
+.grid .lbl{font-size:.82rem;color:var(--muted);padding-right:4px}
+.grid input{padding:7px;text-align:center}
+.pill{font-variant-numeric:tabular-nums;font-weight:600}
+details>summary{cursor:pointer;font-weight:600;padding:6px 0;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"▸ ";color:var(--muted)}
+details[open]>summary::before{content:"▾ "}
+.msg{font-size:.86rem;margin-top:8px;min-height:1.2em}
+.msg.ok{color:var(--green)} .msg.err{color:var(--red)}
+.hide{display:none!important}
+.wl{display:inline-flex;gap:3px}
+.wl span{width:20px;height:20px;border-radius:4px;font-size:.72rem;font-weight:700;
+ display:grid;place-items:center;background:#eef1f5;color:var(--muted)}
+.wl .w{background:var(--greenbg);color:var(--green)}
+.wl .l{background:var(--redbg);color:var(--red)}
+.wl .d{background:#eef1f5;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header id="head">
+  <h1>J1 Check</h1>
+  <p class="sub" id="srcInfo">Loading history…</p>
+</header>
+
+<!-- ROUND -->
+<section id="pgRound">
+  <div class="spread" style="margin-bottom:10px">
+    <h2 style="margin:0">This round</h2>
+    <button class="btn sm" id="addFixBtn" type="button">Add matches</button>
+  </div>
+  <div id="fixList"></div>
+  <div class="card hide" id="pasteCard">
+    <h2>Add this week's matches</h2>
+    <p class="small muted">One match per line: <code>Sat 19:00 | Kashima | Urawa</code>. The date is optional;
+      anything the app can read as a time is enough.</p>
+    <textarea id="fixPaste" placeholder="Sat 19:00 | Kashima Antlers | Urawa Red Diamonds
+Sat 19:00 | FC Tokyo | Kawasaki Frontale"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn primary" id="fixSave" type="button">Add</button>
+      <button class="btn" id="fixClear" type="button">Clear the round</button>
+      <button class="btn" id="pasteCancel" type="button">Cancel</button>
+    </div>
+    <div class="msg" id="fixMsg" role="status"></div>
+  </div>
+</section>
+
+<!-- MATCH -->
+<section id="pgMatch" class="hide">
+  <button class="btn sm" id="backBtn" type="button">‹ Round</button>
+  <div class="card" style="margin-top:10px">
+    <h2 id="mTitle">—</h2>
+    <p class="sub" id="mWhen"></p>
+    <div class="tabs" role="tablist" id="mktTabs">
+      <button role="tab" data-mkt="1x2" aria-selected="true">Match result</button>
+      <button role="tab" data-mkt="ou" aria-selected="false">Goals</button>
+      <button role="tab" data-mkt="ah" aria-selected="false">Handicap</button>
+    </div>
+    <div id="lineRow" class="row hide" style="margin-bottom:10px">
+      <label class="small muted" for="lineVal" id="lineLbl">Line</label>
+      <input id="lineVal" style="width:90px" inputmode="decimal" value="2.5">
+    </div>
+    <div id="priceGrid"></div>
+    <p class="small muted" style="margin:10px 0 0">Enter decimal (2.10) or American (+110, −130). Pinnacle sets fair value; your books are compared to it.</p>
+    <div id="edgeOut" style="margin-top:12px"></div>
+  </div>
+
+  <details id="resDet">
+    <summary>Research</summary>
+    <div id="research"></div>
+  </details>
+
+  <div class="card">
+    <h2>Notes</h2>
+    <textarea id="mNotes" placeholder="Team news, suspensions, anything you want to remember."></textarea>
+    <div class="msg" id="noteMsg" role="status"></div>
+  </div>
+</section>
+
+<!-- BETS -->
+<section id="pgBets" class="hide">
+  <h2>Bets</h2>
+  <div id="betSummary"></div>
+  <div id="betList"></div>
+  <div class="card">
+    <h3 style="margin-top:0">Backup</h3>
+    <div class="row">
+      <button class="btn" id="betCopy" type="button">Copy backup</button>
+      <button class="btn" id="betPasteBtn" type="button">Restore</button>
+    </div>
+    <textarea id="betBackup" class="hide" style="margin-top:8px"></textarea>
+    <div class="msg" id="betMsg" role="status"></div>
+  </div>
+</section>
+
+</div>
+
+<nav class="navbar" role="tablist">
+  <button id="navRound" aria-current="page" type="button">Round</button>
+  <button id="navBets" type="button">Bets</button>
+</nav>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const load=k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}};
+const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const BOOKS=["Bet365","DraftKings","FanDuel"];
+const MKTS={"1x2":{n:3,lbl:["Home","Draw","Away"]},"ou":{n:2,lbl:["Over","Under"]},"ah":{n:2,lbl:["Home","Away"]}};
+
+let HIST=[], TEAMS=[], FIX=load("j1-fix")||[], BETS=load("j1-bets")||[];
+let cur=null, mkt="1x2";
+
+/* ---------- odds helpers ---------- */
+// Accepts 2.10 (decimal) or +110 / -130 (American) and returns decimal odds.
+function toDec(raw){
+ if(raw==null) return null;
+ let s=String(raw).trim().replace(/\u2212/g,"-").replace(/\s/g,"");
+ if(!s) return null;
+ if(/^[+-]/.test(s)||Math.abs(parseFloat(s))>=100){
+  const v=parseFloat(s);
+  if(isNaN(v)||Math.abs(v)<100) return null;
+  return v>0 ? 1+v/100 : 1+100/Math.abs(v);
+ }
+ const d=parseFloat(s);
+ return (isNaN(d)||d<=1) ? null : d;
+}
+const toAm=d=>d>=2 ? "+"+Math.round((d-1)*100) : "−"+Math.round(100/(d-1));
+// Strip the bookmaker's cut proportionally, which is the standard way to read a sharp line.
+function fairFrom(decs){
+ if(decs.some(d=>!d)) return null;
+ const inv=decs.map(d=>1/d), s=inv.reduce((a,b)=>a+b,0);
+ return {p:inv.map(x=>x/s), margin:s-1};
+}
+const edgeOf=(fair,dec)=>fair*dec-1;
+
+/* ---------- history ---------- */
+const RAW="https://raw.githubusercontent.com/Killp24/J1-Check/main/j1_odds.csv";
+function parseCSV(text){
+ const lines=text.split(/\r?\n/).filter(Boolean);
+ const head=lines[0].replace(/^\uFEFF/,"").split(",");
+ return lines.slice(1).map(l=>{
+  const c=l.split(","), o={};
+  head.forEach((h,i)=>o[h.trim()]=(c[i]||"").trim());
+  return o;
+ });
+}
+function normName(n){
+ return String(n||"").toLowerCase().replace(/f\.?c\.?/g," ").replace(/[^a-z]/g,"").slice(0,7);
+}
+async function loadHistory(){
+ try{
+  const t=await fetch(RAW+"?t="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"");
+  if(!t) throw new Error("no data");
+  HIST=parseCSV(t).filter(r=>r.Home&&r.Res).map(r=>({
+   date:r.Date, season:r.Season, home:r.Home, away:r.Away,
+   hg:+r.HG, ag:+r.AG, res:r.Res
+  }));
+  const set=new Set();
+  HIST.forEach(m=>{set.add(m.home);set.add(m.away)});
+  // only teams seen in the last two seasons, so the picker stays current
+  const seasons=[...new Set(HIST.map(m=>m.season))].sort();
+  const recent=new Set(seasons.slice(-2));
+  const live=new Set();
+  HIST.filter(m=>recent.has(m.season)).forEach(m=>{live.add(m.home);live.add(m.away)});
+  TEAMS=[...live].sort();
+  $("srcInfo").textContent=`${HIST.length.toLocaleString()} matches on record, ${seasons[0]} to ${seasons[seasons.length-1]}. ${TEAMS.length} current teams.`;
+ }catch(e){
+  $("srcInfo").textContent="Couldn't load the match history. Prices still work; research will be empty.";
+ }
+}
+
+/* ---------- fixtures ---------- */
+function matchTeam(s){
+ const k=normName(s);
+ if(!k) return null;
+ const hit=TEAMS.filter(t=>normName(t)===k);
+ if(hit.length===1) return hit[0];
+ const loose=TEAMS.filter(t=>normName(t).startsWith(k.slice(0,5))||k.startsWith(normName(t).slice(0,5)));
+ return loose.length===1?loose[0]:(s||"").trim();
+}
+function addFixtures(text){
+ let added=0;
+ for(const line of text.split(/\r?\n/)){
+  if(!line.trim()) continue;
+  const parts=line.split("|").map(x=>x.trim()).filter(Boolean);
+  if(parts.length<2) continue;
+  let when="", home, away;
+  if(parts.length>=3){ when=parts[0]; home=parts[1]; away=parts[2]; }
+  else { home=parts[0]; away=parts[1]; }
+  home=matchTeam(home); away=matchTeam(away);
+  if(!home||!away||home===away) continue;
+  const id="f"+Math.random().toString(36).slice(2,9);
+  FIX.push({id,when,home,away,prices:{},notes:""});
+  added++;
+ }
+ save("j1-fix",FIX);
+ return added;
+}
+function bestEdge(f){
+ let best=null;
+ for(const m of Object.keys(MKTS)){
+  const P=(f.prices[m]||{});
+  const pin=(P.Pinnacle||[]).map(toDec);
+  if(pin.length!==MKTS[m].n||pin.some(x=>!x)) continue;
+  const fair=fairFrom(pin); if(!fair) continue;
+  for(const b of BOOKS){
+   const mine=(P[b]||[]).map(toDec);
+   for(let i=0;i<MKTS[m].n;i++){
+    if(!mine[i]) continue;
+    const e=edgeOf(fair.p[i],mine[i]);
+    if(!best||e>best.edge) best={edge:e,book:b,mkt:m,side:i,dec:mine[i],line:P.line};
+   }
+  }
+ }
+ return best;
+}
+function renderRound(){
+ const box=$("fixList");
+ if(!FIX.length){
+  box.innerHTML='<div class="card"><p class="muted" style="margin:0">No matches yet. Tap <strong>Add matches</strong> and paste this week\'s fixtures.</p></div>';
+  return;
+ }
+ const rows=FIX.map(f=>({f,b:bestEdge(f)}));
+ rows.sort((x,y)=>(y.b?y.b.edge:-9)-(x.b?x.b.edge:-9));
+ box.innerHTML=rows.map(({f,b})=>{
+  let tag='<span class="tag flat">no prices yet</span>';
+  if(b){
+   const cls=b.edge>=0.04?"go":b.edge>=0.02?"thin":"no";
+   const lbl=MKTS[b.mkt].lbl[b.side]+(b.mkt!=="1x2"&&b.line?" "+b.line:"");
+   tag=`<span class="tag ${cls}">${b.edge>=0?"+":""}${(b.edge*100).toFixed(1)}% · ${esc(lbl)} · ${esc(b.book)}</span>`;
+  }
+  return `<button class="fix${b&&b.edge>=0.02?" best":""}" data-id="${f.id}" type="button">
+    <div class="spread"><span class="teams">${esc(f.home)} v ${esc(f.away)}</span>
+    <span class="when">${esc(f.when||"")}</span></div>
+    <div style="margin-top:6px">${tag}</div></button>`;
+ }).join("");
+ box.querySelectorAll("[data-id]").forEach(b=>b.onclick=()=>openMatch(b.dataset.id));
+}
+</script>
+<script>
+/* ---------- match page ---------- */
+function openMatch(id){
+ cur=FIX.find(f=>f.id===id); if(!cur) return;
+ $("pgRound").classList.add("hide"); $("pgBets").classList.add("hide");
+ $("pgMatch").classList.remove("hide");
+ $("mTitle").textContent=cur.home+" v "+cur.away;
+ $("mWhen").textContent=cur.when||"";
+ $("mNotes").value=cur.notes||"";
+ $("resDet").open=false;
+ setMarket(mkt);
+ renderResearch();
+ scrollTo(0,0);
+}
+function showRound(){
+ cur=null;
+ $("pgMatch").classList.add("hide"); $("pgBets").classList.add("hide");
+ $("pgRound").classList.remove("hide");
+ $("navRound").setAttribute("aria-current","page"); $("navBets").removeAttribute("aria-current");
+ renderRound(); scrollTo(0,0);
+}
+function setMarket(m){
+ mkt=m;
+ document.querySelectorAll("#mktTabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.mkt===m));
+ const two=m!=="1x2";
+ $("lineRow").classList.toggle("hide",!two);
+ $("lineLbl").textContent=m==="ou"?"Goals line":"Home handicap";
+ const P=cur.prices[m]||(cur.prices[m]={});
+ $("lineVal").value=P.line||(m==="ou"?"2.5":"-0.5");
+ renderGrid();
+}
+function renderGrid(){
+ const spec=MKTS[mkt], P=cur.prices[mkt]||(cur.prices[mkt]={});
+ const cols=spec.lbl;
+ let h='<div class="grid" style="grid-template-columns:auto repeat('+spec.n+',1fr)">';
+ h+='<div></div>'+cols.map(c=>`<div class="lbl" style="text-align:center">${esc(c)}</div>`).join("");
+ for(const b of ["Pinnacle",...BOOKS]){
+  h+=`<div class="lbl">${esc(b)}</div>`;
+  for(let i=0;i<spec.n;i++){
+   const v=((P[b]||[])[i])||"";
+   h+=`<input data-book="${esc(b)}" data-i="${i}" value="${esc(v)}" inputmode="text" aria-label="${esc(b)} ${esc(cols[i])}">`;
+  }
+ }
+ h+='</div>';
+ $("priceGrid").innerHTML=h;
+ $("priceGrid").querySelectorAll("input").forEach(inp=>{
+  inp.oninput=()=>{
+   const b=inp.dataset.book, i=+inp.dataset.i;
+   P[b]=P[b]||[]; P[b][i]=inp.value;
+   P.line=$("lineVal").value;
+   save("j1-fix",FIX); renderEdges();
+  };
+ });
+ renderEdges();
+}
+function renderEdges(){
+ const spec=MKTS[mkt], P=cur.prices[mkt]||{};
+ const pin=(P.Pinnacle||[]).map(toDec);
+ const out=$("edgeOut");
+ if(pin.length!==spec.n||pin.some(x=>!x)){
+  out.innerHTML='<p class="small muted" style="margin:0">Enter all of Pinnacle\'s prices to see fair value and edges.</p>';
+  return;
+ }
+ const fair=fairFrom(pin);
+ let rows="";
+ for(let i=0;i<spec.n;i++){
+  const cells=BOOKS.map(b=>{
+   const d=toDec((P[b]||[])[i]);
+   if(!d) return '<td class="num muted">–</td>';
+   const e=edgeOf(fair.p[i],d);
+   const cls=e>=0.04?"go":e>=0.02?"thin":"no";
+   return `<td class="num"><span class="tag ${cls}">${e>=0?"+":""}${(e*100).toFixed(1)}%</span><br><span class="small muted">${toAm(d)}</span></td>`;
+  }).join("");
+  rows+=`<tr><td>${esc(spec.lbl[i])}${mkt!=="1x2"&&P.line?" "+esc(P.line):""}</td>
+   <td class="num pill">${(fair.p[i]*100).toFixed(1)}%</td>${cells}</tr>`;
+ }
+ const best=bestEdge(cur);
+ let verdict="";
+ if(best&&best.mkt===mkt){
+  const lbl=spec.lbl[best.side]+(mkt!=="1x2"&&P.line?" "+P.line:"");
+  if(best.edge>=0.02){
+   verdict=`<div class="card" style="margin:10px 0 0;background:var(--greenbg);border-color:var(--green)">
+    <strong>${esc(lbl)} at ${esc(best.book)}</strong><br>
+    <span class="small">${(best.edge*100).toFixed(1)}% better than Pinnacle's fair value. Away selections have historically been where this edge is real.</span>
+    <div class="row" style="margin-top:8px">
+     <input id="stake" style="width:90px" inputmode="decimal" placeholder="Stake">
+     <button class="btn primary sm" id="logBet" type="button">Log bet</button>
+    </div><div class="msg" id="logMsg" role="status"></div></div>`;
+  }else{
+   verdict=`<p class="small muted" style="margin:10px 0 0">Best available is ${(best.edge*100).toFixed(1)}%, under the 2% bar. Nothing here.</p>`;
+  }
+ }
+ out.innerHTML=`<table><tr><th>Selection</th><th class="num">Pinnacle fair</th>
+  ${BOOKS.map(b=>`<th class="num">${esc(b)}</th>`).join("")}</tr>${rows}</table>
+  <p class="small muted" style="margin:8px 0 0">Pinnacle's margin on this market: ${(fair.margin*100).toFixed(1)}%</p>${verdict}`;
+ if($("logBet")) $("logBet").onclick=()=>logBet(best);
+}
+function logBet(best){
+ const st=parseFloat($("stake").value);
+ if(!st||st<=0){ $("logMsg").className="msg err"; $("logMsg").textContent="Enter a stake first."; return; }
+ const P=cur.prices[best.mkt]||{};
+ const pin=(P.Pinnacle||[]).map(toDec), fair=fairFrom(pin);
+ BETS.push({
+  id:"b"+Math.random().toString(36).slice(2,9), made:Date.now(),
+  home:cur.home, away:cur.away, when:cur.when,
+  mkt:best.mkt, side:best.side, line:P.line||"",
+  label:MKTS[best.mkt].lbl[best.side]+(best.mkt!=="1x2"&&P.line?" "+P.line:""),
+  book:best.book, dec:best.dec, stake:st,
+  fair:fair?fair.p[best.side]:null, edge:best.edge, status:"pending"
+ });
+ save("j1-bets",BETS);
+ $("logMsg").className="msg ok";
+ $("logMsg").textContent=`Logged $${st.toFixed(2)} on ${MKTS[best.mkt].lbl[best.side]} at ${toAm(best.dec)}.`;
+}
+
+/* ---------- research ---------- */
+function teamMatches(t,n){
+ return HIST.filter(m=>m.home===t||m.away===t).slice(-n);
+}
+function formRow(t){
+ const ms=teamMatches(t,6);
+ return '<span class="wl">'+ms.map(m=>{
+  const home=m.home===t, gf=home?m.hg:m.ag, ga=home?m.ag:m.hg;
+  const k=gf>ga?"w":gf<ga?"l":"d";
+  return `<span class="${k}" title="${esc(m.date)} ${esc(m.home)} ${m.hg}-${m.ag} ${esc(m.away)}">${k.toUpperCase()}</span>`;
+ }).join("")+'</span>';
+}
+function splits(t){
+ const H=HIST.filter(m=>m.home===t), A=HIST.filter(m=>m.away===t);
+ const last=arr=>arr.slice(-10);
+ const sum=(arr,f)=>arr.reduce((a,m)=>a+f(m),0);
+ const hw=last(H).filter(m=>m.hg>m.ag).length, aw=last(A).filter(m=>m.ag>m.hg).length;
+ const hg=last(H).length?sum(last(H),m=>m.hg+m.ag)/last(H).length:0;
+ const ag=last(A).length?sum(last(A),m=>m.hg+m.ag)/last(A).length:0;
+ return {hw,aw,hn:last(H).length,an:last(A).length,hg,ag};
+}
+function renderResearch(){
+ const box=$("research");
+ if(!HIST.length){ box.innerHTML='<p class="small muted">No history loaded.</p>'; return; }
+ const h=cur.home, a=cur.away;
+ const h2h=HIST.filter(m=>(m.home===h&&m.away===a)||(m.home===a&&m.away===h));
+ const hw=h2h.filter(m=>(m.home===h&&m.hg>m.ag)||(m.away===h&&m.ag>m.hg)).length;
+ const aw=h2h.filter(m=>(m.home===a&&m.hg>m.ag)||(m.away===a&&m.ag>m.hg)).length;
+ const sh=splits(h), sa=splits(a);
+ const goals=h2h.length?(h2h.reduce((x,m)=>x+m.hg+m.ag,0)/h2h.length):0;
+ const over=h2h.length?h2h.filter(m=>m.hg+m.ag>2.5).length/h2h.length:0;
+ box.innerHTML=`
+ <div class="card">
+  <h3 style="margin-top:0">Form, last 6</h3>
+  <p style="margin:.2rem 0">${esc(h)} ${formRow(h)}</p>
+  <p style="margin:.2rem 0">${esc(a)} ${formRow(a)}</p>
+  <h3>Home and away, last 10 each</h3>
+  <table>
+   <tr><th></th><th class="num">Won</th><th class="num">Goals per game</th></tr>
+   <tr><td>${esc(h)} at home</td><td class="num">${sh.hw}/${sh.hn}</td><td class="num">${sh.hg.toFixed(2)}</td></tr>
+   <tr><td>${esc(a)} away</td><td class="num">${sa.aw}/${sa.an}</td><td class="num">${sa.ag.toFixed(2)}</td></tr>
+  </table>
+  <h3>Head to head</h3>
+  ${h2h.length?`<p style="margin:.2rem 0">${esc(h)} ${hw} — ${aw} ${esc(a)} in ${h2h.length} meetings.
+    Average ${goals.toFixed(2)} goals, over 2.5 in ${(over*100).toFixed(0)}%.</p>
+   <table><tr><th>Date</th><th>Result</th></tr>
+   ${h2h.slice(-6).reverse().map(m=>`<tr><td>${esc(m.date)}</td>
+     <td>${esc(m.home)} ${m.hg}-${m.ag} ${esc(m.away)}</td></tr>`).join("")}</table>`
+   :'<p class="small muted" style="margin:.2rem 0">No meetings on record.</p>'}
+  <p class="small muted" style="margin:10px 0 0">League baseline: 2.62 goals a game, over 2.5 hits 48.6%, home wins 41%.</p>
+ </div>`;
+}
+
+/* ---------- bets ---------- */
+function settle(b,res){ b.status=res; save("j1-bets",BETS); renderBets(); }
+function plOf(b){ return b.status==="won" ? b.stake*(b.dec-1) : b.status==="lost" ? -b.stake : 0; }
+function renderBets(){
+ const done=BETS.filter(b=>b.status==="won"||b.status==="lost");
+ const stake=done.reduce((a,b)=>a+b.stake,0), pl=done.reduce((a,b)=>a+plOf(b),0);
+ const exp=done.reduce((a,b)=>a+(b.fair||0),0), won=done.filter(b=>b.status==="won").length;
+ $("betSummary").innerHTML=`<div class="card"><table>
+   <tr><th>Settled</th><th class="num">W–L</th><th class="num">Staked</th><th class="num">P/L</th><th class="num">ROI</th></tr>
+   <tr><td>${done.length}</td><td class="num">${won}–${done.length-won}<br><span class="small muted">exp ${exp.toFixed(1)}</span></td>
+   <td class="num">$${stake.toFixed(2)}</td>
+   <td class="num" style="color:${pl>=0?"var(--green)":"var(--red)"}">${pl>=0?"+":"−"}$${Math.abs(pl).toFixed(2)}</td>
+   <td class="num">${stake?((pl/stake*100).toFixed(1)+"%"):"–"}</td></tr></table>
+   <p class="small muted" style="margin:8px 0 0">Expected wins come from Pinnacle's fair value. Beating it is the sign the edge is real.</p></div>`;
+ const list=[...BETS].reverse();
+ $("betList").innerHTML=list.length?list.map(b=>`<div class="card">
+   <div class="spread"><strong>${esc(b.label)}</strong>
+   <span class="tag ${b.edge>=0.04?"go":"thin"}">+${(b.edge*100).toFixed(1)}%</span></div>
+   <div class="small muted">${esc(b.home)} v ${esc(b.away)} · ${esc(b.book)} ${toAm(b.dec)} · $${b.stake.toFixed(2)}</div>
+   <div class="row" style="margin-top:8px">
+    ${b.status==="pending"?`<button class="btn sm" data-w="${b.id}" type="button">Won</button>
+     <button class="btn sm" data-l="${b.id}" type="button">Lost</button>`
+     :`<span class="tag ${b.status==="won"?"go":"no"}">${b.status}</span>
+       <button class="btn sm" data-u="${b.id}" type="button">Undo</button>`}
+    <button class="btn sm" data-x="${b.id}" type="button">Delete</button>
+   </div></div>`).join("")
+  :'<div class="card"><p class="muted" style="margin:0">No bets logged yet.</p></div>';
+ $("betList").querySelectorAll("[data-w]").forEach(x=>x.onclick=()=>settle(BETS.find(b=>b.id===x.dataset.w),"won"));
+ $("betList").querySelectorAll("[data-l]").forEach(x=>x.onclick=()=>settle(BETS.find(b=>b.id===x.dataset.l),"lost"));
+ $("betList").querySelectorAll("[data-u]").forEach(x=>x.onclick=()=>settle(BETS.find(b=>b.id===x.dataset.u),"pending"));
+ $("betList").querySelectorAll("[data-x]").forEach(x=>x.onclick=()=>{
+  BETS=BETS.filter(b=>b.id!==x.dataset.x); save("j1-bets",BETS); renderBets();
+ });
+}
+
+/* ---------- wiring ---------- */
+$("addFixBtn").onclick=()=>$("pasteCard").classList.toggle("hide");
+$("pasteCancel").onclick=()=>$("pasteCard").classList.add("hide");
+$("fixSave").onclick=()=>{
+ const n=addFixtures($("fixPaste").value);
+ $("fixMsg").className="msg "+(n?"ok":"err");
+ $("fixMsg").textContent=n?`Added ${n} match${n===1?"":"es"}.`:"Nothing read. Use: time | home | away";
+ if(n){ $("fixPaste").value=""; $("pasteCard").classList.add("hide"); renderRound(); }
+};
+$("fixClear").onclick=()=>{ FIX=[]; save("j1-fix",FIX); renderRound(); $("fixMsg").textContent="Round cleared."; };
+$("backBtn").onclick=showRound;
+document.querySelectorAll("#mktTabs button").forEach(b=>b.onclick=()=>setMarket(b.dataset.mkt));
+$("lineVal").oninput=()=>{ (cur.prices[mkt]=cur.prices[mkt]||{}).line=$("lineVal").value; save("j1-fix",FIX); renderEdges(); };
+$("mNotes").oninput=()=>{ cur.notes=$("mNotes").value; save("j1-fix",FIX);
+ $("noteMsg").className="msg ok"; $("noteMsg").textContent="Saved."; };
+$("navRound").onclick=showRound;
+$("navBets").onclick=()=>{
+ $("pgRound").classList.add("hide"); $("pgMatch").classList.add("hide");
+ $("pgBets").classList.remove("hide");
+ $("navBets").setAttribute("aria-current","page"); $("navRound").removeAttribute("aria-current");
+ renderBets(); scrollTo(0,0);
+};
+$("betCopy").onclick=async()=>{
+ const t=JSON.stringify(BETS);
+ try{ await navigator.clipboard.writeText(t); $("betMsg").className="msg ok"; $("betMsg").textContent="Copied."; }
+ catch(e){ $("betBackup").classList.remove("hide"); $("betBackup").value=t; $("betMsg").textContent="Copy it from the box."; }
+};
+$("betPasteBtn").onclick=()=>{
+ const ta=$("betBackup");
+ if(ta.classList.contains("hide")){ ta.classList.remove("hide"); ta.value=""; $("betMsg").textContent="Paste a backup, then tap Restore again."; return; }
+ try{ const v=JSON.parse(ta.value); if(!Array.isArray(v)) throw 0;
+  BETS=v; save("j1-bets",BETS); ta.classList.add("hide");
+  $("betMsg").className="msg ok"; $("betMsg").textContent=`Restored ${v.length} bets.`; renderBets();
+ }catch(e){ $("betMsg").className="msg err"; $("betMsg").textContent="That wasn't a valid backup."; }
+};
+loadHistory().then(renderRound);
+renderRound();
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
