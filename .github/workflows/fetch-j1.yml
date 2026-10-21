@@ -1,0 +1,33 @@
+name: Fetch J1 data
+
+on:
+  schedule:
+    - cron: "40 2 * * 1,2,4"   # Monday, Tuesday and Thursday, after weekend and midweek rounds
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: j1-data
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect results, odds and xG
+        run: python3 fetch_j1.py
+      - name: Save if changed
+        run: |
+          git add j1_odds.csv j1_xg.csv j1_merged.csv fetch_log.txt
+          if git diff --cached --quiet; then
+            echo "No changes."
+          else
+            git config user.name "j1-bot"
+            git config user.email "j1-bot@users.noreply.github.com"
+            git commit -m "Update J1 data"
+            git pull --rebase --autostash || true
+            git push
+          fi
