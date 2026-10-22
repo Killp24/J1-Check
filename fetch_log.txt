@@ -1,4 +1,4 @@
-# run 2026-10-21T08:52Z
+# run 2026-10-22T03:11Z
   ok   200   576,440 bytes  https://www.football-data.co.uk/new/JPN.csv
 football-data columns (25): ﻿Country, League, Season, Date, Time, Home, Away, HG, AG, Res, PSCH, PSCD, PSCA, MaxCH, MaxCD, MaxCA, AvgCH, AvgCD, AvgCA, BFECH, BFECD, BFECA, B365CH, B365CD, B365CA
 football-data rows: 4623
