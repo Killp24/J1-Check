@@ -93,13 +93,17 @@ details[open]>summary::before{content:"▾ "}
 <section id="pgRound">
   <div class="spread" style="margin-bottom:10px">
     <h2 style="margin:0">This round</h2>
-    <button class="btn sm" id="addFixBtn" type="button">Add matches</button>
+    <div class="row">
+      <button class="btn sm" id="refreshFixBtn" type="button">Refresh</button>
+      <button class="btn sm" id="addFixBtn" type="button">Add matches</button>
+    </div>
   </div>
+  <p class="sub" id="fixInfo" style="margin-top:0">Loading fixtures…</p>
   <div id="fixList"></div>
   <div class="card hide" id="pasteCard">
-    <h2>Add this week's matches</h2>
-    <p class="small muted">One match per line: <code>Sat 19:00 | Kashima | Urawa</code>. The date is optional;
-      anything the app can read as a time is enough.</p>
+    <h2>Add matches by hand</h2>
+    <p class="small muted">Only needed if a game is missing. One match per line:
+      <code>Sat 19:00 | Kashima | Urawa</code>. The date is optional.</p>
     <textarea id="fixPaste" placeholder="Sat 19:00 | Kashima Antlers | Urawa Red Diamonds
 Sat 19:00 | FC Tokyo | Kawasaki Frontale"></textarea>
     <div class="row" style="margin-top:8px">
@@ -172,9 +176,18 @@ const load=k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return nu
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const BOOKS=["Bet365","DraftKings","FanDuel"];
 const MKTS={"1x2":{n:3,lbl:["Home","Draw","Away"]},"ou":{n:2,lbl:["Over","Under"]},"ah":{n:2,lbl:["Home","Away"]}};
+const RAW="https://raw.githubusercontent.com/Killp24/J1-Check/main/j1_odds.csv";
+const FIX_RAW="https://raw.githubusercontent.com/Killp24/J1-Check/main/j1_fixtures.csv";
+const ESPN="https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard";
+// ESPN / official names → football-data.co.uk names used in the history file
+const ALIAS={
+ "fagiano okayama":"Okayama","jef united ichihara-chiba":"Chiba","jef united chiba":"Chiba",
+ "tokyo verdy 1969":"Verdy","tokyo verdy":"Verdy","urawa red diamonds":"Urawa Reds",
+ "kyoto sanga":"Kyoto","machida zelvia":"Machida","mito hollyhock":"Mito"
+};
 
 let HIST=[], TEAMS=[], FIX=load("j1-fix")||[], BETS=load("j1-bets")||[];
-let cur=null, mkt="1x2";
+let cur=null, mkt="1x2", FIX_META={source:"", updated:""};
 
 /* ---------- odds helpers ---------- */
 // Accepts 2.10 (decimal) or +110 / -130 (American) and returns decimal odds.
@@ -200,7 +213,6 @@ function fairFrom(decs){
 const edgeOf=(fair,dec)=>fair*dec-1;
 
 /* ---------- history ---------- */
-const RAW="https://raw.githubusercontent.com/Killp24/J1-Check/main/j1_odds.csv";
 function parseCSV(text){
  const lines=text.split(/\r?\n/).filter(Boolean);
  const head=lines[0].replace(/^\uFEFF/,"").split(",");
@@ -213,6 +225,10 @@ function parseCSV(text){
 function normName(n){
  return String(n||"").toLowerCase().replace(/f\.?c\.?/g," ").replace(/[^a-z]/g,"").slice(0,7);
 }
+function aliasName(s){
+ const key=String(s||"").trim().toLowerCase().replace(/\s+/g," ");
+ return ALIAS[key]||String(s||"").trim();
+}
 async function loadHistory(){
  try{
   const t=await fetch(RAW+"?t="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"");
@@ -221,8 +237,6 @@ async function loadHistory(){
    date:r.Date, season:r.Season, home:r.Home, away:r.Away,
    hg:+r.HG, ag:+r.AG, res:r.Res
   }));
-  const set=new Set();
-  HIST.forEach(m=>{set.add(m.home);set.add(m.away)});
   // only teams seen in the last two seasons, so the picker stays current
   const seasons=[...new Set(HIST.map(m=>m.season))].sort();
   const recent=new Set(seasons.slice(-2));
@@ -237,12 +251,151 @@ async function loadHistory(){
 
 /* ---------- fixtures ---------- */
 function matchTeam(s){
+ s=aliasName(s);
  const k=normName(s);
  if(!k) return null;
  const hit=TEAMS.filter(t=>normName(t)===k);
  if(hit.length===1) return hit[0];
- const loose=TEAMS.filter(t=>normName(t).startsWith(k.slice(0,5))||k.startsWith(normName(t).slice(0,5)));
- return loose.length===1?loose[0]:(s||"").trim();
+ // Prefer exact-ish contains over the old prefix rule (which mapped Verdy → FC Tokyo).
+ const contains=TEAMS.filter(t=>{
+  const nt=normName(t);
+  return nt===k||(k.length>=5&&(nt.includes(k)||k.includes(nt)));
+ });
+ if(contains.length===1) return contains[0];
+ return (s||"").trim();
+}
+function fixKey(home,away,date){
+ return `${(date||"").slice(0,10)}|${normName(home)}|${normName(away)}`;
+}
+function formatWhen(iso, detail){
+ if(!iso) return detail||"";
+ const d=new Date(iso);
+ if(isNaN(d)) return detail||iso;
+ const opts={weekday:"short",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"};
+ let s=d.toLocaleString(undefined,opts);
+ if(detail&&!/scheduled/i.test(detail)) s+=" · "+detail;
+ return s;
+}
+function mergeFixtures(incoming){
+ const prev=new Map();
+ for(const f of FIX){
+  prev.set(f.id,f);
+  prev.set(fixKey(f.home,f.away,f.date||f.kickoff||""),f);
+ }
+ const next=[];
+ const used=new Set();
+ for(const row of incoming){
+  const home=matchTeam(row.home), away=matchTeam(row.away);
+  if(!home||!away||home===away) continue;
+  const id=row.id?String(row.id):("f"+fixKey(home,away,row.date||row.kickoff||""));
+  const k=fixKey(home,away,row.date||row.kickoff||"");
+  const old=prev.get(id)||prev.get(k);
+  if(old) used.add(old);
+  next.push({
+   id, home, away,
+   date:(row.date||row.kickoff||"").slice(0,10),
+   kickoff:row.kickoff||"",
+   when:formatWhen(row.kickoff,row.detail),
+   status:row.status||"", state:row.state||"", detail:row.detail||"",
+   auto:true,
+   prices:(old&&old.prices)||{}, notes:(old&&old.notes)||""
+  });
+ }
+ // Keep hand-added matches that aren't on the schedule.
+ for(const f of FIX){
+  if(used.has(f)||f.auto) continue;
+  next.push(f);
+ }
+ FIX=next;
+ save("j1-fix",FIX);
+}
+async function fixturesFromEspn(){
+ const board=await fetch(ESPN+"?t="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.json():null);
+ if(!board) return null;
+ const cal=((board.leagues||[])[0]||{}).calendar||[];
+ const now=new Date();
+ const today=Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate());
+ const days=[];
+ for(const c of cal){
+  const d=new Date(c);
+  if(isNaN(d)) continue;
+  const t=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
+  if(t>=today-86400000&&t<=today+14*86400000){
+   const ymd=d.toISOString().slice(0,10).replace(/-/g,"");
+   if(!days.includes(ymd)) days.push(ymd);
+  }
+ }
+ if(!days.length){
+  for(let i=0;i<8;i++){
+   const d=new Date(today+i*86400000);
+   days.push(d.toISOString().slice(0,10).replace(/-/g,""));
+  }
+ }
+ const byId=new Map();
+ for(const ymd of days){
+  const data=await fetch(`${ESPN}?dates=${ymd}&t=${Date.now()}`,{cache:"no-store"}).then(r=>r.ok?r.json():null);
+  for(const ev of (data&&data.events)||[]){
+   const comps=(ev.competitions||[])[0]||{};
+   let home="", away="";
+   for(const c of comps.competitors||[]){
+    const name=(c.team&&c.team.displayName)||"";
+    if(c.homeAway==="home") home=name;
+    if(c.homeAway==="away") away=name;
+   }
+   if(!home||!away) continue;
+   const st=(ev.status&&ev.status.type)||{};
+   byId.set(String(ev.id),{
+    id:String(ev.id), date:(ev.date||"").slice(0,10), kickoff:ev.date||"",
+    home, away, status:st.name||"", state:st.state||"",
+    detail:st.shortDetail||st.detail||""
+   });
+  }
+ }
+ return [...byId.values()];
+}
+async function fixturesFromCsv(){
+ const t=await fetch(FIX_RAW+"?t="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"");
+ if(!t.trim()) return null;
+ return parseCSV(t).filter(r=>r.home&&r.away);
+}
+async function loadFixtures(){
+ const info=$("fixInfo");
+ info.textContent="Loading fixtures…";
+ try{
+  let rows=null, source="";
+  try{ rows=await fixturesFromEspn(); if(rows&&rows.length) source="ESPN"; }catch(e){ rows=null; }
+  if(!rows||!rows.length){
+   rows=await fixturesFromCsv();
+   if(rows&&rows.length) source="saved schedule";
+  }
+  if(!rows||!rows.length) throw new Error("no fixtures");
+  // Show one matchday in Japan time: today's games if any are on, otherwise the next scheduled date.
+  const today=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Tokyo"}); // YYYY-MM-DD
+  const dayOf=r=>(r.date||r.kickoff||"").slice(0,10);
+  const todays=rows.filter(r=>dayOf(r)===today);
+  let use=todays;
+  if(!use.length){
+   const upcoming=rows.filter(r=>{
+    const st=(r.state||"").toLowerCase();
+    return dayOf(r)>=today&&st!=="post";
+   }).sort((a,b)=>dayOf(a).localeCompare(dayOf(b)));
+   if(upcoming.length){
+    const nextDay=dayOf(upcoming[0]);
+    use=rows.filter(r=>dayOf(r)===nextDay);
+   }else{
+    use=rows.slice().sort((a,b)=>dayOf(b).localeCompare(dayOf(a))).slice(0,10);
+   }
+  }
+  mergeFixtures(use);
+  FIX_META={source, updated:new Date().toISOString()};
+  const live=FIX.filter(f=>f.state==="in").length;
+  const soon=FIX.filter(f=>f.state==="pre"||!f.state).length;
+  const dayLabel=FIX[0]&&FIX[0].date?FIX[0].date:today;
+  info.textContent=`${dayLabel} · ${FIX.length} match${FIX.length===1?"":"es"}${live?" · "+live+" live":""}${soon?" · "+soon+" upcoming":""} · via ${source}. Tap a match to enter prices.`;
+ }catch(e){
+  info.textContent="Couldn't load the schedule. Use Add matches to paste this round by hand.";
+ }
+ renderRound();
 }
 function addFixtures(text){
  let added=0;
@@ -255,8 +408,9 @@ function addFixtures(text){
   else { home=parts[0]; away=parts[1]; }
   home=matchTeam(home); away=matchTeam(away);
   if(!home||!away||home===away) continue;
+  if(FIX.some(f=>normName(f.home)===normName(home)&&normName(f.away)===normName(away))) continue;
   const id="f"+Math.random().toString(36).slice(2,9);
-  FIX.push({id,when,home,away,prices:{},notes:""});
+  FIX.push({id,when,home,away,auto:false,prices:{},notes:""});
   added++;
  }
  save("j1-fix",FIX);
@@ -283,19 +437,28 @@ function bestEdge(f){
 function renderRound(){
  const box=$("fixList");
  if(!FIX.length){
-  box.innerHTML='<div class="card"><p class="muted" style="margin:0">No matches yet. Tap <strong>Add matches</strong> and paste this week\'s fixtures.</p></div>';
+  box.innerHTML='<div class="card"><p class="muted" style="margin:0">No matches on yet. Tap <strong>Refresh</strong>, or <strong>Add matches</strong> to paste fixtures.</p></div>';
   return;
  }
+ const order={in:0,pre:1,post:2};
  const rows=FIX.map(f=>({f,b:bestEdge(f)}));
- rows.sort((x,y)=>(y.b?y.b.edge:-9)-(x.b?x.b.edge:-9));
+ rows.sort((x,y)=>{
+  const so=(order[x.f.state]??1)-(order[y.f.state]??1);
+  if(so) return so;
+  return String(x.f.kickoff||x.f.when||"").localeCompare(String(y.f.kickoff||y.f.when||""));
+ });
  box.innerHTML=rows.map(({f,b})=>{
   let tag='<span class="tag flat">no prices yet</span>';
   if(b){
    const cls=b.edge>=0.04?"go":b.edge>=0.02?"thin":"no";
    const lbl=MKTS[b.mkt].lbl[b.side]+(b.mkt!=="1x2"&&b.line?" "+b.line:"");
    tag=`<span class="tag ${cls}">${b.edge>=0?"+":""}${(b.edge*100).toFixed(1)}% · ${esc(lbl)} · ${esc(b.book)}</span>`;
+  }else if(f.state==="in"){
+   tag='<span class="tag go">Live</span>';
+  }else if(f.state==="post"){
+   tag=`<span class="tag flat">${esc(f.detail||"FT")}</span>`;
   }
-  return `<button class="fix${b&&b.edge>=0.02?" best":""}" data-id="${f.id}" type="button">
+  return `<button class="fix${b&&b.edge>=0.02?" best":""}" data-id="${esc(f.id)}" type="button">
     <div class="spread"><span class="teams">${esc(f.home)} v ${esc(f.away)}</span>
     <span class="when">${esc(f.when||"")}</span></div>
     <div style="margin-top:6px">${tag}</div></button>`;
@@ -508,6 +671,7 @@ function renderBets(){
 
 /* ---------- wiring ---------- */
 $("addFixBtn").onclick=()=>$("pasteCard").classList.toggle("hide");
+$("refreshFixBtn").onclick=()=>loadFixtures();
 $("pasteCancel").onclick=()=>$("pasteCard").classList.add("hide");
 $("fixSave").onclick=()=>{
  const n=addFixtures($("fixPaste").value);
@@ -515,7 +679,12 @@ $("fixSave").onclick=()=>{
  $("fixMsg").textContent=n?`Added ${n} match${n===1?"":"es"}.`:"Nothing read. Use: time | home | away";
  if(n){ $("fixPaste").value=""; $("pasteCard").classList.add("hide"); renderRound(); }
 };
-$("fixClear").onclick=()=>{ FIX=[]; save("j1-fix",FIX); renderRound(); $("fixMsg").textContent="Round cleared."; };
+$("fixClear").onclick=()=>{
+ FIX=[]; save("j1-fix",FIX);
+ $("fixMsg").className="msg ok";
+ $("fixMsg").textContent="Cleared local prices. Reloading the schedule…";
+ loadFixtures();
+};
 $("backBtn").onclick=showRound;
 document.querySelectorAll("#mktTabs button").forEach(b=>b.onclick=()=>setMarket(b.dataset.mkt));
 $("lineVal").oninput=()=>{ (cur.prices[mkt]=cur.prices[mkt]||{}).line=$("lineVal").value; save("j1-fix",FIX); renderEdges(); };
@@ -541,7 +710,7 @@ $("betPasteBtn").onclick=()=>{
   $("betMsg").className="msg ok"; $("betMsg").textContent=`Restored ${v.length} bets.`; renderBets();
  }catch(e){ $("betMsg").className="msg err"; $("betMsg").textContent="That wasn't a valid backup."; }
 };
-loadHistory().then(renderRound);
+loadHistory().then(loadFixtures);
 renderRound();
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
