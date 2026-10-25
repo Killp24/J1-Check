@@ -79,6 +79,14 @@ details[open]>summary::before{content:"▾ "}
 .wl .w{background:var(--greenbg);color:var(--green)}
 .wl .l{background:var(--redbg);color:var(--red)}
 .wl .d{background:#eef1f5;color:var(--muted)}
+.slipbar{position:fixed;left:0;right:0;bottom:calc(48px + env(safe-area-inset-bottom,0px));
+ background:var(--navy);color:#fff;padding:10px 12px;z-index:10;
+ display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:.9rem}
+.slipbar button{font:inherit;font-size:.85rem;padding:6px 10px;border-radius:8px;border:0;
+ background:#fff;color:var(--navy);font-weight:600;cursor:pointer}
+.wrap.has-slip{padding-bottom:140px}
+.leg{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px;background:#fff}
+.leg .spread{margin-bottom:2px}
 </style>
 </head>
 <body>
@@ -150,6 +158,7 @@ Sat 19:00 | FC Tokyo | Kawasaki Frontale"></textarea>
 <!-- BETS -->
 <section id="pgBets" class="hide">
   <h2>Bets</h2>
+  <div id="slipBox"></div>
   <div id="betSummary"></div>
   <div id="betList"></div>
   <div class="card">
@@ -163,6 +172,11 @@ Sat 19:00 | FC Tokyo | Kawasaki Frontale"></textarea>
   </div>
 </section>
 
+</div>
+
+<div id="slipBar" class="slipbar hide" role="status">
+  <span id="slipBarText">Parlay slip empty</span>
+  <button type="button" id="slipBarOpen">Open slip</button>
 </div>
 
 <nav class="navbar" role="tablist">
@@ -186,7 +200,7 @@ const ALIAS={
  "kyoto sanga":"Kyoto","machida zelvia":"Machida","mito hollyhock":"Mito"
 };
 
-let HIST=[], TEAMS=[], FIX=load("j1-fix")||[], BETS=load("j1-bets")||[];
+let HIST=[], TEAMS=[], FIX=load("j1-fix")||[], BETS=load("j1-bets")||[], SLIP=load("j1-slip")||[];
 let cur=null, mkt="1x2", FIX_META={source:"", updated:""};
 
 /* ---------- odds helpers ---------- */
@@ -546,22 +560,132 @@ function renderEdges(){
  let verdict="";
  if(best&&best.mkt===mkt){
   const lbl=spec.lbl[best.side]+(mkt!=="1x2"&&P.line?" "+P.line:"");
-  if(best.edge>=0.02){
-   verdict=`<div class="card" style="margin:10px 0 0;background:var(--greenbg);border-color:var(--green)">
-    <strong>${esc(lbl)} at ${esc(best.book)}</strong><br>
-    <span class="small">${(best.edge*100).toFixed(1)}% better than Pinnacle's fair value. Away selections have historically been where this edge is real.</span>
-    <div class="row" style="margin-top:8px">
-     <input id="stake" style="width:90px" inputmode="decimal" placeholder="Stake">
-     <button class="btn primary sm" id="logBet" type="button">Log bet</button>
-    </div><div class="msg" id="logMsg" role="status"></div></div>`;
-  }else{
-   verdict=`<p class="small muted" style="margin:10px 0 0">Best available is ${(best.edge*100).toFixed(1)}%, under the 2% bar. Nothing here.</p>`;
+  const tone=best.edge>=0.02?"var(--greenbg)":"var(--card)";
+  const border=best.edge>=0.02?"var(--green)":"var(--line)";
+  const tip=best.edge>=0.02
+   ?`${(best.edge*100).toFixed(1)}% better than Pinnacle's fair value. Away selections have historically been where this edge is real.`
+   :`Best available is ${(best.edge*100).toFixed(1)}%. You can still log a single or add it to a parlay.`;
+  verdict=`<div class="card" style="margin:10px 0 0;background:${tone};border-color:${border}">
+   <strong>${esc(lbl)} at ${esc(best.book)}</strong><br>
+   <span class="small">${tip}</span>
+   <div class="row" style="margin-top:8px">
+    <input id="stake" style="width:90px" inputmode="decimal" placeholder="Stake">
+    <button class="btn primary sm" id="logBet" type="button">Log single</button>
+    <button class="btn sm" id="addParlay" type="button">Add to parlay</button>
+   </div><div class="msg" id="logMsg" role="status"></div></div>`;
+ }
+ // Per-cell parlay actions for any priced selection on this market
+ let parlayRow="";
+ const opts=[];
+ for(let i=0;i<spec.n;i++){
+  for(const b of BOOKS){
+   const d=toDec((P[b]||[])[i]);
+   if(!d||!fair.p[i]) continue;
+   const e=edgeOf(fair.p[i],d);
+   const lbl=spec.lbl[i]+(mkt!=="1x2"&&P.line?" "+P.line:"");
+   opts.push({book:b,side:i,dec:d,edge:e,label:lbl,fair:fair.p[i]});
   }
+ }
+ if(opts.length){
+  parlayRow=`<div style="margin-top:10px"><h3 style="margin-top:0">Add a leg</h3>
+   <div class="row">${opts.map((o,idx)=>`<button class="btn sm" type="button" data-leg="${idx}">${esc(o.label)} · ${esc(o.book)} ${toAm(o.dec)}</button>`).join("")}</div>
+   <div class="msg" id="legMsg" role="status"></div></div>`;
  }
  out.innerHTML=`<table><tr><th>Selection</th><th class="num">Pinnacle fair</th>
   ${BOOKS.map(b=>`<th class="num">${esc(b)}</th>`).join("")}</tr>${rows}</table>
-  <p class="small muted" style="margin:8px 0 0">Pinnacle's margin on this market: ${(fair.margin*100).toFixed(1)}%</p>${verdict}`;
- if($("logBet")) $("logBet").onclick=()=>logBet(best);
+  <p class="small muted" style="margin:8px 0 0">Pinnacle's margin on this market: ${(fair.margin*100).toFixed(1)}%</p>${verdict}${parlayRow}`;
+ if($("logBet")) $("logBet").onclick=()=>logBet(best,"single");
+ if($("addParlay")) $("addParlay").onclick=()=>addSlipLeg(legFromBest(best));
+ out.querySelectorAll("[data-leg]").forEach(btn=>{
+  btn.onclick=()=>addSlipLeg(legFromOpt(opts[+btn.dataset.leg]));
+ });
+}
+function selectionLabel(mktName,side,line){
+ return MKTS[mktName].lbl[side]+(mktName!=="1x2"&&line?" "+line:"");
+}
+function legFromBest(best){
+ const P=cur.prices[best.mkt]||{};
+ const pin=(P.Pinnacle||[]).map(toDec), fair=fairFrom(pin);
+ return {
+  fixId:cur.id, home:cur.home, away:cur.away, when:cur.when,
+  mkt:best.mkt, side:best.side, line:P.line||"",
+  label:selectionLabel(best.mkt,best.side,P.line),
+  book:best.book, dec:best.dec,
+  fair:fair?fair.p[best.side]:null, edge:best.edge
+ };
+}
+function legFromOpt(o){
+ return {
+  fixId:cur.id, home:cur.home, away:cur.away, when:cur.when,
+  mkt:mkt, side:o.side, line:(cur.prices[mkt]||{}).line||"",
+  label:o.label, book:o.book, dec:o.dec, fair:o.fair, edge:o.edge
+ };
+}
+function slipSave(){ save("j1-slip",SLIP); renderSlipBar(); }
+function addSlipLeg(leg){
+ const msg=$("legMsg")||$("logMsg");
+ if(!leg||!leg.dec){ if(msg){ msg.className="msg err"; msg.textContent="Need a price first."; } return; }
+ if(SLIP.length&&SLIP[0].book!==leg.book){
+  if(msg){ msg.className="msg err"; msg.textContent=`Parlay legs must be the same book. Slip is on ${SLIP[0].book}. Clear it or pick that book.`; }
+  return;
+ }
+ // One leg per match in a parlay
+ if(SLIP.some(l=>l.fixId===leg.fixId||(l.home===leg.home&&l.away===leg.away))){
+  if(msg){ msg.className="msg err"; msg.textContent="That match is already on the slip."; }
+  return;
+ }
+ SLIP.push({...leg, id:"l"+Math.random().toString(36).slice(2,9)});
+ slipSave();
+ if(msg){ msg.className="msg ok"; msg.textContent=`Added to ${SLIP[0].book} parlay (${SLIP.length} leg${SLIP.length===1?"":"s"}).`; }
+}
+function clearSlip(){ SLIP=[]; slipSave(); renderSlip(); }
+function slipCombined(){
+ if(!SLIP.length) return null;
+ const dec=SLIP.reduce((a,l)=>a*l.dec,1);
+ const fair=SLIP.every(l=>l.fair!=null)?SLIP.reduce((a,l)=>a*l.fair,1):null;
+ const edge=fair!=null?edgeOf(fair,dec):null;
+ return {dec,fair,edge,book:SLIP[0].book,n:SLIP.length};
+}
+function renderSlipBar(){
+ const bar=$("slipBar"), wrap=document.querySelector(".wrap");
+ if(!SLIP.length){
+  bar.classList.add("hide"); wrap.classList.remove("has-slip"); return;
+ }
+ const c=slipCombined();
+ bar.classList.remove("hide"); wrap.classList.add("has-slip");
+ $("slipBarText").textContent=`${c.n}-leg ${c.book} parlay · ${toAm(c.dec)}${c.edge!=null?` · ${c.edge>=0?"+":""}${(c.edge*100).toFixed(1)}%`:""}`;
+}
+function renderSlip(){
+ const box=$("slipBox");
+ if(!box) return;
+ if(!SLIP.length){
+  box.innerHTML=`<div class="card"><h3 style="margin-top:0">Parlay slip</h3>
+   <p class="muted" style="margin:0">Empty. On a match, tap <strong>Add to parlay</strong> (same book, one leg per game).</p></div>`;
+  return;
+ }
+ const c=slipCombined();
+ const edgeTag=c.edge==null?'<span class="tag flat">no fair yet</span>'
+  :`<span class="tag ${c.edge>=0.04?"go":c.edge>=0.02?"thin":"no"}">${c.edge>=0?"+":""}${(c.edge*100).toFixed(1)}% vs fair</span>`;
+ box.innerHTML=`<div class="card">
+  <div class="spread"><h3 style="margin:0">${c.n}-leg parlay · ${esc(c.book)}</h3>${edgeTag}</div>
+  <p class="small muted" style="margin:6px 0 10px">Combined ${c.dec.toFixed(2)} (${toAm(c.dec)})${c.fair!=null?` · fair ${(c.fair*100).toFixed(2)}%`:""}. All legs must win.</p>
+  ${SLIP.map(l=>`<div class="leg">
+    <div class="spread"><strong>${esc(l.label)}</strong>
+     <button class="btn sm" type="button" data-rm="${l.id}">Remove</button></div>
+    <div class="small muted">${esc(l.home)} v ${esc(l.away)} · ${toAm(l.dec)}${l.edge!=null?` · ${l.edge>=0?"+":""}${(l.edge*100).toFixed(1)}%`:""}</div>
+   </div>`).join("")}
+  <div class="row" style="margin-top:4px">
+   <input id="parlayStake" style="width:90px" inputmode="decimal" placeholder="Stake">
+   <button class="btn primary sm" id="logParlay" type="button" ${c.n<2?"disabled":""}>Log parlay</button>
+   <button class="btn sm" id="clearSlip" type="button">Clear slip</button>
+  </div>
+  <div class="msg" id="parlayMsg" role="status">${c.n<2?"Add at least two legs.":""}</div>
+ </div>`;
+ box.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{
+  SLIP=SLIP.filter(l=>l.id!==b.dataset.rm); slipSave(); renderSlip();
+ });
+ $("clearSlip").onclick=()=>{ clearSlip(); };
+ if($("logParlay")) $("logParlay").onclick=()=>logParlay();
 }
 function logBet(best){
  const st=parseFloat($("stake").value);
@@ -569,16 +693,36 @@ function logBet(best){
  const P=cur.prices[best.mkt]||{};
  const pin=(P.Pinnacle||[]).map(toDec), fair=fairFrom(pin);
  BETS.push({
-  id:"b"+Math.random().toString(36).slice(2,9), made:Date.now(),
+  id:"b"+Math.random().toString(36).slice(2,9), made:Date.now(), type:"single",
   home:cur.home, away:cur.away, when:cur.when,
   mkt:best.mkt, side:best.side, line:P.line||"",
-  label:MKTS[best.mkt].lbl[best.side]+(best.mkt!=="1x2"&&P.line?" "+P.line:""),
+  label:selectionLabel(best.mkt,best.side,P.line),
   book:best.book, dec:best.dec, stake:st,
   fair:fair?fair.p[best.side]:null, edge:best.edge, status:"pending"
  });
  save("j1-bets",BETS);
  $("logMsg").className="msg ok";
- $("logMsg").textContent=`Logged $${st.toFixed(2)} on ${MKTS[best.mkt].lbl[best.side]} at ${toAm(best.dec)}.`;
+ $("logMsg").textContent=`Logged $${st.toFixed(2)} on ${selectionLabel(best.mkt,best.side,P.line)} at ${toAm(best.dec)}.`;
+}
+function logParlay(){
+ const c=slipCombined();
+ const msg=$("parlayMsg");
+ if(!c||c.n<2){ msg.className="msg err"; msg.textContent="Need at least two legs."; return; }
+ const st=parseFloat($("parlayStake").value);
+ if(!st||st<=0){ msg.className="msg err"; msg.textContent="Enter a stake first."; return; }
+ BETS.push({
+  id:"b"+Math.random().toString(36).slice(2,9), made:Date.now(), type:"parlay",
+  label:`${c.n}-leg parlay`, book:c.book, dec:c.dec, stake:st,
+  fair:c.fair, edge:c.edge, status:"pending",
+  legs:SLIP.map(l=>({home:l.home,away:l.away,label:l.label,mkt:l.mkt,side:l.side,
+   line:l.line,dec:l.dec,fair:l.fair,edge:l.edge}))
+ });
+ save("j1-bets",BETS);
+ const note=`Logged $${st.toFixed(2)} ${c.n}-leg parlay at ${toAm(c.dec)}.`;
+ clearSlip();
+ renderBets();
+ $("betMsg").className="msg ok";
+ $("betMsg").textContent=note;
 }
 
 /* ---------- research ---------- */
@@ -637,29 +781,43 @@ function renderResearch(){
 /* ---------- bets ---------- */
 function settle(b,res){ b.status=res; save("j1-bets",BETS); renderBets(); }
 function plOf(b){ return b.status==="won" ? b.stake*(b.dec-1) : b.status==="lost" ? -b.stake : 0; }
+function isParlay(b){ return b.type==="parlay"||(b.legs&&b.legs.length); }
 function renderBets(){
+ renderSlip();
  const done=BETS.filter(b=>b.status==="won"||b.status==="lost");
  const stake=done.reduce((a,b)=>a+b.stake,0), pl=done.reduce((a,b)=>a+plOf(b),0);
  const exp=done.reduce((a,b)=>a+(b.fair||0),0), won=done.filter(b=>b.status==="won").length;
+ const parlays=BETS.filter(isParlay).length;
  $("betSummary").innerHTML=`<div class="card"><table>
    <tr><th>Settled</th><th class="num">W–L</th><th class="num">Staked</th><th class="num">P/L</th><th class="num">ROI</th></tr>
    <tr><td>${done.length}</td><td class="num">${won}–${done.length-won}<br><span class="small muted">exp ${exp.toFixed(1)}</span></td>
    <td class="num">$${stake.toFixed(2)}</td>
    <td class="num" style="color:${pl>=0?"var(--green)":"var(--red)"}">${pl>=0?"+":"−"}$${Math.abs(pl).toFixed(2)}</td>
    <td class="num">${stake?((pl/stake*100).toFixed(1)+"%"):"–"}</td></tr></table>
-   <p class="small muted" style="margin:8px 0 0">Expected wins come from Pinnacle's fair value. Beating it is the sign the edge is real.</p></div>`;
+   <p class="small muted" style="margin:8px 0 0">Expected wins use Pinnacle fair value${parlays?` (parlay fair = product of legs)`:""}. Beating it is the sign the edge is real.</p></div>`;
  const list=[...BETS].reverse();
- $("betList").innerHTML=list.length?list.map(b=>`<div class="card">
-   <div class="spread"><strong>${esc(b.label)}</strong>
-   <span class="tag ${b.edge>=0.04?"go":"thin"}">+${(b.edge*100).toFixed(1)}%</span></div>
-   <div class="small muted">${esc(b.home)} v ${esc(b.away)} · ${esc(b.book)} ${toAm(b.dec)} · $${b.stake.toFixed(2)}</div>
+ $("betList").innerHTML=list.length?list.map(b=>{
+  const edge=b.edge;
+  const edgeTag=edge==null?'<span class="tag flat">no fair</span>'
+   :`<span class="tag ${edge>=0.04?"go":edge>=0.02?"thin":"no"}">${edge>=0?"+":""}${(edge*100).toFixed(1)}%</span>`;
+  const title=isParlay(b)?`${b.legs.length}-leg parlay`:`${esc(b.label)}`;
+  const sub=isParlay(b)
+   ?`${esc(b.book)} ${toAm(b.dec)} · $${b.stake.toFixed(2)}`
+   :`${esc(b.home)} v ${esc(b.away)} · ${esc(b.book)} ${toAm(b.dec)} · $${b.stake.toFixed(2)}`;
+  const legs=isParlay(b)?`<ul class="small muted" style="margin:8px 0 0;padding-left:18px">
+    ${b.legs.map(l=>`<li>${esc(l.home)} v ${esc(l.away)} — ${esc(l.label)} (${toAm(l.dec)})</li>`).join("")}
+   </ul>`:"";
+  return `<div class="card">
+   <div class="spread"><strong>${title}${isParlay(b)?' <span class="tag flat">parlay</span>':""}</strong>${edgeTag}</div>
+   <div class="small muted">${sub}</div>${legs}
    <div class="row" style="margin-top:8px">
     ${b.status==="pending"?`<button class="btn sm" data-w="${b.id}" type="button">Won</button>
      <button class="btn sm" data-l="${b.id}" type="button">Lost</button>`
      :`<span class="tag ${b.status==="won"?"go":"no"}">${b.status}</span>
        <button class="btn sm" data-u="${b.id}" type="button">Undo</button>`}
     <button class="btn sm" data-x="${b.id}" type="button">Delete</button>
-   </div></div>`).join("")
+   </div></div>`;
+ }).join("")
   :'<div class="card"><p class="muted" style="margin:0">No bets logged yet.</p></div>';
  $("betList").querySelectorAll("[data-w]").forEach(x=>x.onclick=()=>settle(BETS.find(b=>b.id===x.dataset.w),"won"));
  $("betList").querySelectorAll("[data-l]").forEach(x=>x.onclick=()=>settle(BETS.find(b=>b.id===x.dataset.l),"lost"));
@@ -697,6 +855,7 @@ $("navBets").onclick=()=>{
  $("navBets").setAttribute("aria-current","page"); $("navRound").removeAttribute("aria-current");
  renderBets(); scrollTo(0,0);
 };
+$("slipBarOpen").onclick=()=>$("navBets").click();
 $("betCopy").onclick=async()=>{
  const t=JSON.stringify(BETS);
  try{ await navigator.clipboard.writeText(t); $("betMsg").className="msg ok"; $("betMsg").textContent="Copied."; }
@@ -712,6 +871,7 @@ $("betPasteBtn").onclick=()=>{
 };
 loadHistory().then(loadFixtures);
 renderRound();
+renderSlipBar();
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
 </body>

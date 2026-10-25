@@ -1,4 +1,4 @@
-const CACHE="j1-check-v2";
+const CACHE="j1-check-v3";
 const SHELL=["./","./index.html","./manifest.json"];
 self.addEventListener("install",e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));
