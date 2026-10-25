@@ -1,4 +1,4 @@
-const CACHE="j1-check-v1";
+const CACHE="j1-check-v3";
 const SHELL=["./","./index.html","./manifest.json"];
 self.addEventListener("install",e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));
@@ -9,8 +9,8 @@ self.addEventListener("activate",e=>{
 });
 self.addEventListener("fetch",e=>{
   const url=new URL(e.request.url);
-  // data always comes from the network first, so prices and history stay current
-  if(url.pathname.endsWith(".csv")||url.hostname==="raw.githubusercontent.com"){
+  // data always comes from the network first, so prices, history and fixtures stay current
+  if(url.pathname.endsWith(".csv")||url.hostname==="raw.githubusercontent.com"||url.hostname==="site.api.espn.com"){
     e.respondWith(fetch(e.request,{cache:"no-store"}).catch(()=>caches.match(e.request)));
     return;
   }

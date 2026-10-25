@@ -1,20 +1,23 @@
 """Collect J1 League data for the betting tracker.
 
-Two sources, both free:
+Sources, all free:
   football-data.co.uk  - results plus CLOSING odds (Pinnacle, market max, market average)
                          for Japan, back to 2012. This is what lets us measure whether a
                          model beats the closing line.
   FBref                - results plus expected goals (xG), which predict goal volume far
                          better than results do. Essential for over/under work.
+  ESPN scoreboard      - upcoming / in-progress fixtures so the app can show what's on
+                         without anyone pasting a round by hand.
 
 Writes:
   j1_odds.csv      every match with closing odds
   j1_xg.csv        every match with xG for both sides
   j1_merged.csv    the two joined on date and teams, which is what the analysis uses
+  j1_fixtures.csv  upcoming and recent fixtures for the Round screen
   fetch_log.txt    what happened, including the exact columns each source gave us
 """
-import csv, io, re, sys, time, urllib.request
-from datetime import datetime
+import csv, io, json, re, sys, time, urllib.request
+from datetime import datetime, timedelta, timezone
 
 UA = {"User-Agent": "Mozilla/5.0 (J1 tracker; results and odds for personal analysis)"}
 LOG = []
@@ -183,5 +186,100 @@ if merged:
         w.writeheader()
         w.writerows(merged)
 
+
+# ---------- 4. ESPN: upcoming fixtures for the Round screen ----------
+# ESPN's public scoreboard API is CORS-friendly and carries kickoff times for J1.
+# Names differ slightly from football-data; the app maps them on load.
+ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard"
+ALIAS = {
+    "fagiano okayama": "Okayama",
+    "jef united ichihara-chiba": "Chiba",
+    "jef united chiba": "Chiba",
+    "tokyo verdy 1969": "Verdy",
+    "tokyo verdy": "Verdy",
+    "urawa red diamonds": "Urawa Reds",
+    "kyoto sanga": "Kyoto",
+    "machida zelvia": "Machida",
+    "mito hollyhock": "Mito",
+}
+
+
+def espn_name(n):
+    key = re.sub(r"\s+", " ", (n or "").strip().lower())
+    return ALIAS.get(key, (n or "").strip())
+
+
+def espn_day(ymd):
+    body = get(f"{ESPN}?dates={ymd}")
+    if not body:
+        return []
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError as e:
+        log(f"  ESPN JSON error on {ymd}: {e}")
+        return []
+    out = []
+    for ev in data.get("events") or []:
+        comps = (ev.get("competitions") or [{}])[0]
+        home = away = ""
+        for c in comps.get("competitors") or []:
+            name = espn_name((c.get("team") or {}).get("displayName", ""))
+            if c.get("homeAway") == "home":
+                home = name
+            elif c.get("homeAway") == "away":
+                away = name
+        if not (home and away):
+            continue
+        when = ev.get("date") or ""
+        st = ((ev.get("status") or {}).get("type") or {})
+        out.append({
+            "id": str(ev.get("id") or f"{ymd}-{home}-{away}"),
+            "date": when[:10],
+            "kickoff": when,
+            "home": home,
+            "away": away,
+            "status": st.get("name") or "",
+            "state": st.get("state") or "",
+            "detail": st.get("shortDetail") or st.get("detail") or "",
+        })
+    return out
+
+
+fix_rows = []
+board = get(ESPN)
+cal = []
+if board:
+    try:
+        cal = (json.loads(board).get("leagues") or [{}])[0].get("calendar") or []
+    except json.JSONDecodeError:
+        cal = []
+now = datetime.now(timezone.utc).date()
+# Pull today through the next two weeks of calendar matchdays.
+want = []
+for c in cal:
+    try:
+        d = datetime.fromisoformat(c.replace("Z", "+00:00")).date()
+    except ValueError:
+        continue
+    if now - timedelta(days=1) <= d <= now + timedelta(days=14):
+        want.append(d.strftime("%Y%m%d"))
+if not want:
+    want = [(now + timedelta(days=i)).strftime("%Y%m%d") for i in range(0, 8)]
+seen_ids = set()
+for ymd in want:
+    for row in espn_day(ymd):
+        if row["id"] in seen_ids:
+            continue
+        seen_ids.add(row["id"])
+        fix_rows.append(row)
+    time.sleep(0.4)
+log(f"ESPN fixtures: {len(fix_rows)} matches across {len(want)} days")
+
+fields = ["id", "date", "kickoff", "home", "away", "status", "state", "detail"]
+with open("j1_fixtures.csv", "w", newline="", encoding="utf-8") as f:
+    w = csv.DictWriter(f, fieldnames=fields)
+    w.writeheader()
+    w.writerows(fix_rows)
+
 open("fetch_log.txt", "w", encoding="utf-8").write(
-    f"# run {datetime.utcnow().strftime('%Y-%m-%dT%H:%MZ')}\n" + "\n".join(LOG) + "\n")
+    f"# run {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%MZ')}\n" + "\n".join(LOG) + "\n")
