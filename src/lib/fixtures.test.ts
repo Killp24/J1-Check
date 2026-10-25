@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestEdge, parseFixtureLines } from "./fixtures";
+import { bestEdge, marketOffers, parseFixtureLines } from "./fixtures";
 import { edge, fairProbabilities, toDecimal } from "./odds";
 import type { Fixture } from "./types";
 
@@ -45,6 +45,26 @@ describe("bestEdge", () => {
     expect(best?.side).toBe(0);
     expect(best?.edge).toBeCloseTo(homeEdge, 12);
     expect(homeEdge).toBeGreaterThan(0.04);
+  });
+
+  it("lists every priced book, with no edge until Pinnacle is complete", () => {
+    const fixture: Fixture = {
+      id: "f1",
+      when: "",
+      home: "A",
+      away: "B",
+      notes: "",
+      prices: { "1x2": { Bet365: ["2.40", "", ""], DraftKings: ["", "3.60", ""] } },
+    };
+    const open = marketOffers(fixture, "1x2");
+    expect(open.map((offer) => [offer.book, offer.side, offer.edge])).toEqual([
+      ["Bet365", 0, null],
+      ["DraftKings", 1, null],
+    ]);
+    fixture.prices["1x2"] = { ...fixture.prices["1x2"], Pinnacle: ["2.10", "3.40", "3.50"] };
+    const priced = marketOffers(fixture, "1x2");
+    expect(priced[0]?.edge).toBeGreaterThan(0);
+    expect(priced[1]?.edge).not.toBeNull();
   });
 
   it("returns null until every Pinnacle price is present", () => {

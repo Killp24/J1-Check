@@ -39,6 +39,39 @@ function readDecimals(values: readonly string[] | undefined, count: number): Dec
   return decimals;
 }
 
+export interface MarketOffer {
+  book: SoftBook;
+  side: number;
+  dec: DecimalOdds;
+  edge: number | null;
+  fair: number | null;
+}
+
+/** Every soft-book price on one market. Edge is null until Pinnacle's line is complete. */
+export function marketOffers(fixture: Fixture, market: MarketKey): MarketOffer[] {
+  const prices = fixture.prices?.[market];
+  if (!prices) return [];
+  const count = MARKETS[market].labels.length;
+  const pinnacle = readDecimals(prices.Pinnacle, count);
+  const fair = pinnacle ? fairProbabilities(pinnacle) : null;
+  const offers: MarketOffer[] = [];
+  for (const book of SOFT_BOOKS) {
+    const mine = prices[book] ?? [];
+    for (let side = 0; side < count; side += 1) {
+      const decimal = toDecimal(mine[side] ?? "");
+      if (!decimal) continue;
+      offers.push({
+        book,
+        side,
+        dec: decimal,
+        edge: fair ? edge(fair.probabilities[side] ?? 0, decimal) : null,
+        fair: fair ? (fair.probabilities[side] ?? null) : null,
+      });
+    }
+  }
+  return offers;
+}
+
 export function bestEdge(fixture: Fixture): BestEdge | null {
   let best: BestEdge | null = null;
   const prices = fixture.prices ?? {};

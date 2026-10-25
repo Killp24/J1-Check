@@ -1,4 +1,4 @@
-import { formCells, headToHead, venueSplit } from "../lib/history";
+import { formCells, headToHead, venueSplit, type VenueSplit } from "../lib/history";
 import type { HistMatch } from "../lib/types";
 
 interface ResearchPageProps {
@@ -14,6 +14,7 @@ export function ResearchPage({ matches, teams, home, away, onTeams }: ResearchPa
   const ready = Boolean(home && away && home !== away && matches.length);
   const h2h = ready ? headToHead(matches, home, away) : null;
   const recent = h2h ? [...h2h.meetings].slice(-6).reverse() : [];
+  const draws = h2h ? h2h.meetings.length - h2h.homeWins - h2h.awayWins : 0;
 
   return (
     <section id="pgResearch">
@@ -53,58 +54,73 @@ export function ResearchPage({ matches, teams, home, away, onTeams }: ResearchPa
         <p className="small muted">Pick two different teams.</p>
       ) : null}
       {ready && h2h ? (
-        <div className="card" id="research">
-          <h3 style={{ marginTop: 0 }}>Form, last 6</h3>
-          <FormLine team={home} matches={matches} />
-          <FormLine team={away} matches={matches} />
-          <h3>Home and away, last 10 each</h3>
-          <table>
-            <thead>
-              <tr>
-                <th />
-                <th className="num">Won</th>
-                <th className="num">Goals per game</th>
-              </tr>
-            </thead>
-            <tbody>
-              <SplitRow team={`${home} at home`} split={venueSplit(matches, home, "home")} />
-              <SplitRow team={`${away} away`} split={venueSplit(matches, away, "away")} />
-            </tbody>
-          </table>
-          <h3>Head to head</h3>
-          {h2h.meetings.length ? (
-            <>
-              <p style={{ margin: ".2rem 0" }}>
-                {home} {h2h.homeWins} — {h2h.awayWins} {away} in {h2h.meetings.length} meetings. Average{" "}
-                {h2h.goalsPerGame.toFixed(2)} goals, over 2.5 in {(h2h.over25Rate * 100).toFixed(0)}%.
-              </p>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recent.map((match, index) => (
-                    <tr key={`${match.date}-${match.home}-${index}`}>
-                      <td>{match.date}</td>
-                      <td>
-                        {match.home} {match.hg}-{match.ag} {match.away}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
-          ) : (
-            <p className="small muted" style={{ margin: ".2rem 0" }}>
-              No meetings on record.
+        <div id="research">
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Form, last 6</h2>
+            <p className="small muted" style={{ margin: 0 }}>
+              Oldest on the left.
             </p>
-          )}
-          <p className="small muted" style={{ margin: "10px 0 0" }}>
-            League baseline: 2.62 goals a game, over 2.5 hits 48.6%, home wins 41%.
-          </p>
+            <FormLine team={home} matches={matches} />
+            <FormLine team={away} matches={matches} />
+          </div>
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Home and away, last 10</h2>
+            <SplitBlock team={home} place="at home" split={venueSplit(matches, home, "home")} />
+            <SplitBlock team={away} place="away" split={venueSplit(matches, away, "away")} />
+          </div>
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Head to head</h2>
+            {h2h.meetings.length ? (
+              <>
+                <div className="score">
+                  <div>
+                    <div className="n">{h2h.homeWins}</div>
+                    <div className="name">{home}</div>
+                  </div>
+                  <div className="mid">
+                    <div className="n">{draws}</div>
+                    <div className="name">Draws</div>
+                  </div>
+                  <div>
+                    <div className="n">{h2h.awayWins}</div>
+                    <div className="name">{away}</div>
+                  </div>
+                </div>
+                <div className="stats three">
+                  <div className="stat">
+                    <span className="k">Meetings</span>
+                    <span className="v">{h2h.meetings.length}</span>
+                  </div>
+                  <div className="stat">
+                    <span className="k">Goals / game</span>
+                    <span className="v">{h2h.goalsPerGame.toFixed(2)}</span>
+                    <span className="s">both teams</span>
+                  </div>
+                  <div className="stat">
+                    <span className="k">Over 2.5</span>
+                    <span className="v">{(h2h.over25Rate * 100).toFixed(0)}%</span>
+                  </div>
+                </div>
+                <h3>Recent</h3>
+                {recent.map((match, index) => (
+                  <div className="result" key={`${match.date}-${match.home}-${index}`}>
+                    <span className="small muted">{match.date}</span>
+                    <span>
+                      <span className={match.hg > match.ag ? "winner" : undefined}>{match.home}</span> {match.hg}-
+                      {match.ag} <span className={match.ag > match.hg ? "winner" : undefined}>{match.away}</span>
+                    </span>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <p className="small muted" style={{ margin: ".2rem 0" }}>
+                No meetings on record.
+              </p>
+            )}
+            <p className="small muted" style={{ margin: "10px 0 0" }}>
+              League baseline: 2.62 goals a game, over 2.5 hits 48.6%, home wins 41%.
+            </p>
+          </div>
         </div>
       ) : null}
     </section>
@@ -112,34 +128,46 @@ export function ResearchPage({ matches, teams, home, away, onTeams }: ResearchPa
 }
 
 function FormLine({ team, matches }: { team: string; matches: HistMatch[] }) {
+  const cells = formCells(matches, team);
   return (
-    <p style={{ margin: ".2rem 0" }}>
-      {team}{" "}
-      <span className="wl">
-        {formCells(matches, team).map((cell, index) => (
-          <span key={`${cell.title}-${index}`} className={cell.kind} title={cell.title}>
-            {cell.kind.toUpperCase()}
-          </span>
-        ))}
-      </span>
-    </p>
+    <div className="formline">
+      <span className="who">{team}</span>
+      {cells.length ? (
+        <span className="wl">
+          {cells.map((cell, index) => (
+            <span key={`${cell.title}-${index}`} className={cell.kind} title={cell.title}>
+              {cell.kind.toUpperCase()}
+            </span>
+          ))}
+        </span>
+      ) : (
+        <span className="small muted">No games</span>
+      )}
+    </div>
   );
 }
 
-function SplitRow({
-  team,
-  split,
-}: {
-  team: string;
-  split: { wins: number; played: number; goalsPerGame: number };
-}) {
+function SplitBlock({ team, place, split }: { team: string; place: string; split: VenueSplit }) {
+  const rate = split.played ? `${Math.round((split.wins / split.played) * 100)}%` : "No games";
   return (
-    <tr>
-      <td>{team}</td>
-      <td className="num">
-        {split.wins}/{split.played}
-      </td>
-      <td className="num">{split.goalsPerGame.toFixed(2)}</td>
-    </tr>
+    <div>
+      <div className="who" style={{ fontWeight: 600, marginTop: 8 }}>
+        {team} {place}
+      </div>
+      <div className="stats">
+        <div className="stat">
+          <span className="k">Won</span>
+          <span className="v">
+            {split.wins}/{split.played}
+          </span>
+          <span className="s">{rate}</span>
+        </div>
+        <div className="stat">
+          <span className="k">Goals / game</span>
+          <span className="v">{split.goalsPerGame.toFixed(2)}</span>
+          <span className="s">both teams</span>
+        </div>
+      </div>
+    </div>
   );
 }

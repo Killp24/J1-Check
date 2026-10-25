@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { bestEdge, edgeBand, formatEdgePercent, selectionLabel } from "../lib/fixtures";
-import { BOOKS, MARKETS, SOFT_BOOKS, marketTitle, type BookName, type MarketKey } from "../lib/markets";
-import { fairProbabilities, formatDecimalAsAmerican, toDecimal, edge as edgeOf } from "../lib/odds";
+import { edgeBand, formatEdgePercent, marketOffers, selectionLabel, type MarketOffer } from "../lib/fixtures";
+import { BOOKS, MARKETS, SOFT_BOOKS, marketTitle, type BookName, type MarketKey, type SoftBook } from "../lib/markets";
+import { edge as edgeOf, fairProbabilities, formatDecimalAsAmerican, toDecimal } from "../lib/odds";
 import { newId } from "../lib/storage";
 import type { Bet, Fixture, MarketPrices } from "../lib/types";
 
@@ -15,6 +15,11 @@ interface MatchPageProps {
   onLogBet: (bet: Bet) => void;
 }
 
+interface Pick {
+  side: number;
+  book: SoftBook;
+}
+
 function withBookPrice(fixture: Fixture, market: MarketKey, book: BookName, index: number, value: string): Fixture {
   const count = MARKETS[market].labels.length;
   const current = fixture.prices[market] ?? {};
@@ -26,6 +31,17 @@ function withBookPrice(fixture: Fixture, market: MarketKey, book: BookName, inde
   };
 }
 
+function defaultPick(offers: readonly MarketOffer[]): Pick {
+  const ranked = offers.filter((offer) => offer.edge != null);
+  if (ranked.length) {
+    const best = ranked.reduce((top, offer) => ((offer.edge ?? -Infinity) > (top.edge ?? -Infinity) ? offer : top));
+    return { side: best.side, book: best.book };
+  }
+  const first = offers[0];
+  if (first) return { side: first.side, book: first.book };
+  return { side: 0, book: "Bet365" };
+}
+
 export function MatchPage({ fixture, market, onMarket, onChange, onBack, onResearch, onLogBet }: MatchPageProps) {
   const [noteState, setNoteState] = useState({ id: fixture.id, message: "" });
   if (noteState.id !== fixture.id) setNoteState({ id: fixture.id, message: "" });
@@ -34,6 +50,7 @@ export function MatchPage({ fixture, market, onMarket, onChange, onBack, onResea
 
   const prices: MarketPrices = fixture.prices[market] ?? {};
   const spec = MARKETS[market];
+  const offers = marketOffers(fixture, market);
   const defaultLine = market === "ou" ? "2.5" : "-0.5";
   const [lineState, setLineState] = useState({
     id: fixture.id,
@@ -46,25 +63,91 @@ export function MatchPage({ fixture, market, onMarket, onChange, onBack, onResea
   const lineDraft = lineState.value;
   const setLineDraft = (value: string) => setLineState({ id: fixture.id, market, value });
 
+  const [pickState, setPickState] = useState(() => ({
+    id: fixture.id,
+    market,
+    pick: defaultPick(marketOffers(fixture, market)),
+  }));
+  const pickMatches = pickState.id === fixture.id && pickState.market === market;
+  const pick = pickMatches ? pickState.pick : defaultPick(offers);
+  if (!pickMatches) setPickState({ id: fixture.id, market, pick });
+  const choose = (next: Pick) => setPickState({ id: fixture.id, market, pick: next });
+
+  const [stakeState, setStakeState] = useState({ id: fixture.id, market, stake: "", message: "", ok: false });
+  const stakeMatches = stakeState.id === fixture.id && stakeState.market === market;
+  const stake = stakeMatches ? stakeState.stake : "";
+  const logMessage = stakeMatches ? stakeState.message : "";
+  const logOk = stakeMatches ? stakeState.ok : false;
+  if (!stakeMatches) setStakeState({ id: fixture.id, market, stake: "", message: "", ok: false });
+
   const pinnacle = spec.labels.map((_, index) => toDecimal((prices.Pinnacle ?? [])[index] ?? ""));
   const fair = pinnacle.every((value) => value != null)
     ? fairProbabilities(pinnacle.filter((value): value is NonNullable<typeof value> => value != null))
     : null;
-  const best = bestEdge(fixture);
-  const verdict = best && best.market === market ? best : null;
+
+  const label = selectionLabel(market, pick.side, prices.line);
+  const sideName = spec.labels[pick.side] ?? "";
+  const chosen = toDecimal((prices[pick.book] ?? [])[pick.side] ?? "");
+  const fairProb = fair ? (fair.probabilities[pick.side] ?? null) : null;
+  const chosenEdge = chosen && fairProb != null ? edgeOf(fairProb, chosen) : null;
+
+  const logBet = () => {
+    const amount = Number.parseFloat(stake);
+    if (!amount || amount <= 0) {
+      setStakeState({ id: fixture.id, market, stake, message: "Enter a stake first.", ok: false });
+      return;
+    }
+    if (!chosen) {
+      setStakeState({
+        id: fixture.id,
+        market,
+        stake,
+        message: `Enter ${pick.book}'s price for ${label} first.`,
+        ok: false,
+      });
+      return;
+    }
+    onLogBet({
+      id: newId("b"),
+      made: Date.now(),
+      home: fixture.home,
+      away: fixture.away,
+      when: fixture.when,
+      mkt: market,
+      side: pick.side,
+      line: prices.line || "",
+      label,
+      book: pick.book,
+      dec: chosen,
+      stake: amount,
+      fair: fairProb,
+      edge: chosenEdge ?? 0,
+      status: "pending",
+    });
+    setStakeState({
+      id: fixture.id,
+      market,
+      stake,
+      message: `Logged $${amount.toFixed(2)} on ${sideName} at ${formatDecimalAsAmerican(chosen)}.`,
+      ok: true,
+    });
+  };
 
   return (
     <section id="pgMatch">
       <button className="btn sm" id="backBtn" type="button" onClick={onBack}>
         ‹ Round
       </button>
-      <div className="card" style={{ marginTop: 10 }}>
+      <div className="match-top">
+      <div className="card">
         <h2 id="mTitle">
           {fixture.home} v {fixture.away}
         </h2>
-        <p className="sub" id="mWhen">
-          {fixture.when || ""}
-        </p>
+        {fixture.when ? (
+          <p className="sub" id="mWhen">
+            {fixture.when}
+          </p>
+        ) : null}
         <div className="tabs" role="tablist" id="mktTabs">
           {(Object.keys(MARKETS) as MarketKey[]).map((key) => (
             <button
@@ -100,9 +183,9 @@ export function MatchPage({ fixture, market, onMarket, onChange, onBack, onResea
         </div>
         <div id="priceGrid" className="grid" style={{ gridTemplateColumns: `auto repeat(${spec.labels.length}, 1fr)` }}>
           <div />
-          {spec.labels.map((label) => (
-            <div key={label} className="lbl" style={{ textAlign: "center" }}>
-              {label}
+          {spec.labels.map((name) => (
+            <div key={name} className="lbl" style={{ textAlign: "center" }}>
+              {name}
             </div>
           ))}
           {BOOKS.map((book) => (
@@ -116,99 +199,132 @@ export function MatchPage({ fixture, market, onMarket, onChange, onBack, onResea
           ))}
         </div>
         <p className="small muted" style={{ margin: "10px 0 0" }}>
-          Enter decimal (2.10) or American (+110, −130). Pinnacle sets fair value; your books are compared to it.
+          Enter decimal (2.10) or American (+110, −130). Then use Add a bet. Pinnacle sets fair value; the other books
+          are compared to it.
         </p>
-        <div id="edgeOut" style={{ marginTop: 12 }}>
-          {!fair ? (
-            <p className="small muted" style={{ margin: 0 }}>
-              Enter all of Pinnacle&apos;s prices to see fair value and edges.
-            </p>
-          ) : (
-            <>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Selection</th>
-                    <th className="num">Pinnacle fair</th>
-                    {SOFT_BOOKS.map((book) => (
-                      <th key={book} className="num">
-                        {book}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {spec.labels.map((label, index) => (
-                    <tr key={label}>
-                      <td>
-                        {label}
-                        {market !== "1x2" && prices.line ? ` ${prices.line}` : ""}
-                      </td>
-                      <td className="num pill">{((fair.probabilities[index] ?? 0) * 100).toFixed(1)}%</td>
-                      {SOFT_BOOKS.map((book) => {
-                        const decimal = toDecimal((prices[book] ?? [])[index] ?? "");
-                        if (!decimal) {
-                          return (
-                            <td key={book} className="num muted">
-                              –
-                            </td>
-                          );
-                        }
-                        const value = edgeOf(fair.probabilities[index] ?? 0, decimal);
-                        return (
-                          <td key={book} className="num">
-                            <span className={`tag ${edgeBand(value)}`}>{formatEdgePercent(value)}</span>
-                            <br />
-                            <span className="small muted">{formatDecimalAsAmerican(decimal)}</span>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="small muted" style={{ margin: "8px 0 0" }}>
-                Pinnacle&apos;s margin on this market: {(fair.margin * 100).toFixed(1)}%
-              </p>
-              {verdict && verdict.edge >= 0.02 ? (
-                <LogBet
-                  key={`${verdict.book}:${verdict.market}:${verdict.side}:${verdict.line ?? ""}:${verdict.dec}`}
-                  label={selectionLabel(verdict.market, verdict.side, prices.line)}
-                  book={verdict.book}
-                  edgeValue={verdict.edge}
-                  onLog={(stakeText) => {
-                    const stake = Number.parseFloat(stakeText);
-                    if (!stake || stake <= 0) return "Enter a stake first.";
-                    const sideName = MARKETS[verdict.market].labels[verdict.side] ?? "";
-                    onLogBet({
-                      id: newId("b"),
-                      made: Date.now(),
-                      home: fixture.home,
-                      away: fixture.away,
-                      when: fixture.when,
-                      mkt: verdict.market,
-                      side: verdict.side,
-                      line: prices.line || "",
-                      label: selectionLabel(verdict.market, verdict.side, prices.line),
-                      book: verdict.book,
-                      dec: verdict.dec,
-                      stake,
-                      fair: fair?.probabilities[verdict.side] ?? null,
-                      edge: verdict.edge,
-                      status: "pending",
-                    });
-                    return `Logged $${stake.toFixed(2)} on ${sideName} at ${formatDecimalAsAmerican(verdict.dec)}.`;
-                  }}
-                />
-              ) : null}
-              {verdict && verdict.edge < 0.02 ? (
-                <p className="small muted" style={{ margin: "10px 0 0" }}>
-                  Best available is {(verdict.edge * 100).toFixed(1)}%, under the 2% bar. Nothing here.
-                </p>
-              ) : null}
-            </>
-          )}
+      </div>
+
+      <div className="card add-bet" id="addBet">
+        <h2 style={{ margin: 0 }}>Add a bet</h2>
+        <p className="small muted" style={{ margin: "6px 0 0" }}>
+          Choose the selection and the book, check the price, then enter a stake.
+        </p>
+        <div className="choice" role="group" aria-label="Selection">
+          {spec.labels.map((name, index) => (
+            <button
+              key={name}
+              type="button"
+              aria-pressed={pick.side === index}
+              onClick={() => choose({ side: index, book: pick.book })}
+            >
+              {selectionLabel(market, index, prices.line)}
+            </button>
+          ))}
         </div>
+        <div className="choice" role="group" aria-label="Book">
+          {SOFT_BOOKS.map((book) => (
+            <button key={book} type="button" aria-pressed={pick.book === book} onClick={() => choose({ side: pick.side, book })}>
+              {book}
+            </button>
+          ))}
+        </div>
+        <p style={{ margin: "4px 0 0", fontWeight: 700 }}>
+          {label} · {pick.book}
+        </p>
+        {chosen ? (
+          <div className="stats">
+            <div className="stat">
+              <span className="k">Price</span>
+              <span className="v">{formatDecimalAsAmerican(chosen)}</span>
+              <span className="s">{chosen.toFixed(2)} decimal</span>
+            </div>
+            <div className="stat">
+              <span className="k">Edge</span>
+              <span className="v">{chosenEdge == null ? "–" : formatEdgePercent(chosenEdge)}</span>
+              <span className="s">{chosenEdge == null ? "Needs Pinnacle" : "vs Pinnacle fair"}</span>
+            </div>
+          </div>
+        ) : (
+          <p className="small" style={{ margin: "8px 0 0" }}>
+            Enter {pick.book}&apos;s price for {label} first.
+          </p>
+        )}
+        {chosenEdge != null && chosenEdge < 0.02 ? (
+          <p className="small muted" style={{ margin: "8px 0 0" }}>
+            Under the 2% bar. You can still add it.
+          </p>
+        ) : null}
+        <div className="row" style={{ marginTop: 8 }}>
+          <input
+            id="stake"
+            inputMode="decimal"
+            placeholder="Stake"
+            aria-label="Stake"
+            value={stake}
+            onChange={(event) =>
+              setStakeState({ id: fixture.id, market, stake: event.target.value, message: logMessage, ok: logOk })
+            }
+          />
+          <button className="btn primary" id="logBet" type="button" onClick={logBet}>
+            Add bet
+          </button>
+        </div>
+        <div className={logMessage ? (logOk ? "msg ok" : "msg err") : "msg"} id="logMsg" role="status">
+          {logMessage}
+        </div>
+      </div>
+      </div>
+
+      <div className="card" id="edgeOut" style={{ marginTop: 10 }}>
+        <h2 style={{ marginTop: 0 }}>Compared with Pinnacle</h2>
+        <p className="small muted" style={{ margin: "8px 0 0" }}>
+          {fair
+            ? `Pinnacle's margin on this market: ${(fair.margin * 100).toFixed(1)}%`
+            : "Enter all of Pinnacle's prices to see fair value. You can still add a bet."}
+        </p>
+        {spec.labels.map((name, index) => {
+          const row = offers.filter((offer) => offer.side === index);
+          const shown = selectionLabel(market, index, prices.line);
+          return (
+            <div className="sel" key={name}>
+              <div className="spread">
+                <strong>{shown}</strong>
+                {fair ? (
+                  <span className="pill">{((fair.probabilities[index] ?? 0) * 100).toFixed(1)}%</span>
+                ) : (
+                  <span className="small muted">Fair not ready</span>
+                )}
+              </div>
+              {row.length === 0 ? (
+                <p className="small muted" style={{ margin: "6px 0 0" }}>
+                  No price at Bet365, DraftKings, or FanDuel yet.
+                </p>
+              ) : (
+                row.map((offer) => (
+                  <div className="bookline" key={`${offer.book}-${offer.side}`}>
+                    <span>{offer.book}</span>
+                    {offer.edge == null ? (
+                      <span className="tag flat">–</span>
+                    ) : (
+                      <span className={`tag ${edgeBand(offer.edge)}`}>{formatEdgePercent(offer.edge)}</span>
+                    )}
+                    <span className="pill">{formatDecimalAsAmerican(offer.dec)}</span>
+                    <button
+                      className="btn sm"
+                      type="button"
+                      onClick={() => {
+                        choose({ side: offer.side, book: offer.book });
+                        document.getElementById("addBet")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                    >
+                      Add bet
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div className="card">
@@ -257,69 +373,15 @@ function BookRow({
   return (
     <>
       <div className="lbl">{book}</div>
-      {labels.map((label, index) => (
+      {labels.map((name, index) => (
         <input
-          key={`${book}-${label}`}
+          key={`${book}-${name}`}
           value={values[index] ?? ""}
           inputMode="text"
-          aria-label={`${book} ${label}`}
+          aria-label={`${book} ${name}`}
           onChange={(event) => onChange(index, event.target.value)}
         />
       ))}
     </>
-  );
-}
-
-function LogBet({
-  label,
-  book,
-  edgeValue,
-  onLog,
-}: {
-  label: string;
-  book: string;
-  edgeValue: number;
-  onLog: (stake: string) => string;
-}) {
-  const [stake, setStake] = useState("");
-  const [message, setMessage] = useState("");
-  const [ok, setOk] = useState(false);
-  return (
-    <div className="card" style={{ margin: "10px 0 0", background: "var(--greenbg)", borderColor: "var(--green)" }}>
-      <strong>
-        {label} at {book}
-      </strong>
-      <br />
-      <span className="small">
-        {(edgeValue * 100).toFixed(1)}% better than Pinnacle&apos;s fair value. Away selections have historically been
-        where this edge is real.
-      </span>
-      <div className="row" style={{ marginTop: 8 }}>
-        <input
-          id="stake"
-          style={{ width: 90 }}
-          inputMode="decimal"
-          placeholder="Stake"
-          value={stake}
-          onChange={(event) => setStake(event.target.value)}
-        />
-        <button
-          className="btn primary sm"
-          id="logBet"
-          type="button"
-          onClick={() => {
-            const next = onLog(stake);
-            const failed = next === "Enter a stake first.";
-            setOk(!failed);
-            setMessage(next);
-          }}
-        >
-          Log bet
-        </button>
-      </div>
-      <div className={message ? (ok ? "msg ok" : "msg err") : "msg"} id="logMsg" role="status">
-        {message}
-      </div>
-    </div>
   );
 }

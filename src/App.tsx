@@ -121,6 +121,7 @@ export function App() {
             }
             onDelete={(id) => setBets((current) => current.filter((bet) => bet.id !== id))}
             onReplace={setBets}
+            onShowRound={() => setPage({ name: "round" })}
           />
         ) : null}
       </div>
