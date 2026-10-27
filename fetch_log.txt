@@ -1,4 +1,4 @@
-# run 2026-10-26T03:15Z
+# run 2026-10-27T03:14Z
   ok   200   577,740 bytes  https://www.football-data.co.uk/new/JPN.csv
 football-data columns (25): ﻿Country, League, Season, Date, Time, Home, Away, HG, AG, Res, PSCH, PSCD, PSCA, MaxCH, MaxCD, MaxCA, AvgCH, AvgCD, AvgCA, BFECH, BFECD, BFECA, B365CH, B365CD, B365CA
 football-data rows: 4633
@@ -24,10 +24,9 @@ trying the GitHub results mirror instead
   fail 404 attempt 3/3  https://raw.githubusercontent.com/footballcsv/cache.footballdata/master/JPN/2026/jpn.1.csv: HTTP Error 404: Not Found
 merged: 4633 matches, 0 with xG attached
   ok   200    52,895 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard
-  ok   200    52,831 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261025
   ok   200    75,299 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261031
   ok   200    51,480 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261101
   ok   200    10,397 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261106
   ok   200    39,300 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261107
   ok   200    32,121 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261108
-ESPN fixtures: 25 matches across 6 days
+ESPN fixtures: 20 matches across 5 days
