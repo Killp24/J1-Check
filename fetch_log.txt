@@ -1,4 +1,4 @@
-# run 2026-10-29T03:25Z
+# run 2026-11-02T09:57Z
   ok   200   611,541 bytes  https://www.football-data.co.uk/new/JPN.csv
 football-data columns (32): ﻿Country, League, Season, Date, Time, Home, Away, HG, AG, Res, PSCH, PSCD, PSCA, MaxCH, MaxCD, MaxCA, AvgCH, AvgCD, AvgCA, BFECH, BFECD, BFECA, B365CH, B365CD, B365CA, , , , , , , 
 football-data rows: 4643
@@ -23,10 +23,9 @@ trying the GitHub results mirror instead
   fail 404 attempt 2/3  https://raw.githubusercontent.com/footballcsv/cache.footballdata/master/JPN/2026/jpn.1.csv: HTTP Error 404: Not Found
   fail 404 attempt 3/3  https://raw.githubusercontent.com/footballcsv/cache.footballdata/master/JPN/2026/jpn.1.csv: HTTP Error 404: Not Found
 merged: 4643 matches, 0 with xG attached
-  ok   200    75,340 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard
-  ok   200    75,276 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261031
-  ok   200    51,480 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261101
-  ok   200    10,397 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261106
-  ok   200    39,277 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261107
-  ok   200    32,121 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261108
-ESPN fixtures: 20 matches across 5 days
+  ok   200    41,202 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard
+  ok   200    41,138 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261101
+  ok   200    15,506 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261106
+  ok   200    63,357 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261107
+  ok   200    51,176 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261108
+ESPN fixtures: 14 matches across 4 days
