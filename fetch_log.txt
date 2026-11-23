@@ -1,4 +1,4 @@
-# run 2026-11-19T10:45Z
+# run 2026-11-23T11:16Z
   ok   200   614,269 bytes  https://www.football-data.co.uk/new/JPN.csv
 football-data columns (32): ﻿Country, League, Season, Date, Time, Home, Away, HG, AG, Res, PSCH, PSCD, PSCA, MaxCH, MaxCD, MaxCA, AvgCH, AvgCD, AvgCA, BFECH, BFECD, BFECA, B365CH, B365CD, B365CA, , , , , , , 
 football-data rows: 4663
@@ -23,10 +23,11 @@ trying the GitHub results mirror instead
   fail 404 attempt 2/3  https://raw.githubusercontent.com/footballcsv/cache.footballdata/master/JPN/2026/jpn.1.csv: HTTP Error 404: Not Found
   fail 404 attempt 3/3  https://raw.githubusercontent.com/footballcsv/cache.footballdata/master/JPN/2026/jpn.1.csv: HTTP Error 404: Not Found
 merged: 4663 matches, 0 with xG attached
-  ok   200    39,535 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard
-  ok   200    39,471 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261120
-  ok   200    87,351 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261121
-  ok   200    53,952 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261125
+  ok   200    87,579 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard
+  ok   200    87,515 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261125
   ok   200    39,394 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261128
-  ok   200    39,246 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261129
-ESPN fixtures: 27 matches across 5 days
+  ok   200    39,244 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261129
+  ok   200    17,647 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261204
+  ok   200    32,061 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261205
+  ok   200    32,141 bytes  https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20261206
+ESPN fixtures: 27 matches across 6 days
